@@ -17,6 +17,23 @@ from docling.document_converter import DocumentConverter
 
 # --- Context Forge Gateway ---
 CONTEXT_FORGE_URL = "http://localhost:4444"
+CONTEXT_FORGE_CREDS = {"username": "admin@example.com", "password": "changeme"}
+
+@st.cache_data(ttl=270, show_spinner=False)
+def get_gateway_token() -> str:
+    """Obtains a JWT from the Context Forge gateway (cached 4.5 min)."""
+    try:
+        r = requests.post(
+            f"{CONTEXT_FORGE_URL}/auth/login",
+            json=CONTEXT_FORGE_CREDS,
+            timeout=3,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            return next(iter(data.values()), "")
+    except Exception:
+        pass
+    return ""
 
 def log_to_context_forge(team_a: str, team_b: str, prompt: str, response: str):
     """Stores the last LLM call payload in session state for sidebar display."""
@@ -139,16 +156,28 @@ with st.sidebar:
 
     if gateway_online:
         with st.expander("🔍 Inspect Option 3 Gateway Logs"):
-            # Rendered here but reads session_state which is populated AFTER predict runs.
-            # On the run where predict fires, log_to_context_forge() writes gateway_logs
-            # BEFORE this sidebar re-renders (Streamlit re-runs full script top-to-bottom),
-            # so session_state already has the fresh payload by the time we read it here.
             local_logs = st.session_state.get("gateway_logs", [])
             if local_logs:
                 st.caption("📦 Last pipeline call:")
                 st.json(local_logs[-1])
             else:
                 st.caption("Run a prediction to see telemetry here.")
+            # --- Gateway audit trail ---
+            try:
+                token = get_gateway_token()
+                if token:
+                    trail = requests.get(
+                        f"{CONTEXT_FORGE_URL}/api/logs/audit-trails",
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=3,
+                    )
+                    if trail.status_code == 200:
+                        entries = trail.json()
+                        if isinstance(entries, list) and entries:
+                            st.caption("📋 Gateway audit trail (latest):")
+                            st.json(entries[-1])
+            except Exception:
+                pass
 
     st.divider()
     st.header("📄 Scouting Report (Optional)")
