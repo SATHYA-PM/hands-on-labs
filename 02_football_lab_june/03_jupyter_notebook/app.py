@@ -124,9 +124,9 @@ def call_langchain(chain, **kwargs):
         )
 
 # --- SIDEBAR: CONTEXT FORGE STATUS + DOCLING PDF UPLOADER ---
+gateway_online = False
 with st.sidebar:
     st.header("🌐 Context Forge Gateway")
-    gateway_online = False
     try:
         r = requests.get(f"{CONTEXT_FORGE_URL}/health", timeout=3)
         if r.status_code == 200:
@@ -136,10 +136,13 @@ with st.sidebar:
             st.warning(f"Gateway: Unexpected status {r.status_code}")
     except Exception as e:
         st.error(f"Gateway: Offline ❌ ({e})")
-        
-    # --- OPTION 3: REAL-TIME TELEMETRY STREAM INSPECTOR ---
+
     if gateway_online:
         with st.expander("🔍 Inspect Option 3 Gateway Logs"):
+            # Rendered here but reads session_state which is populated AFTER predict runs.
+            # On the run where predict fires, log_to_context_forge() writes gateway_logs
+            # BEFORE this sidebar re-renders (Streamlit re-runs full script top-to-bottom),
+            # so session_state already has the fresh payload by the time we read it here.
             local_logs = st.session_state.get("gateway_logs", [])
             if local_logs:
                 st.caption("📦 Last pipeline call:")
@@ -169,13 +172,17 @@ st.caption("AI-Powered by IBM Granite-4 via LangChain + Docling | Prototyped usi
 
 team_names = sorted(team_stats.keys())
 
+def _clear_telemetry():
+    """Called by on_change on either selectbox — clears stale telemetry before next render."""
+    st.session_state.pop("gateway_logs", None)
+
 col1, col2 = st.columns(2)
 with col1:
     default_a = team_names.index("Brazil") if "Brazil" in team_names else 0
-    team_a = st.selectbox("Team A", team_names, index=default_a)
+    team_a = st.selectbox("Team A", team_names, index=default_a, key="sel_team_a", on_change=_clear_telemetry)
 with col2:
     default_b = team_names.index("Argentina") if "Argentina" in team_names else 1
-    team_b = st.selectbox("Team B", team_names, index=default_b)
+    team_b = st.selectbox("Team B", team_names, index=default_b, key="sel_team_b", on_change=_clear_telemetry)
 
 is_neutral          = st.checkbox("Neutral venue", value=True)
 is_major_tournament = st.checkbox("Major tournament (e.g. World Cup)", value=True)
@@ -286,6 +293,12 @@ if st.button("Predict Match & Analyze Pressure", type="primary", use_container_w
                 "results and match details",
                 "start directly with",
                 "without a summary",
+                "end the response with",
+                "the end.",
+                "involves '",
+                "at least once",
+                "overall, what can be said",
+                "what can be said about",
             )
             filtered_lines = [
                 seg.strip() for seg in raw_segments
@@ -313,4 +326,3 @@ if st.button("Predict Match & Analyze Pressure", type="primary", use_container_w
             prompt=scouting_block + f"{team_a} vs {team_b}",
             response=ai_analysis,
         )
-        
