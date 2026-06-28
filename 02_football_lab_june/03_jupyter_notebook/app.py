@@ -16,8 +16,11 @@ from langchain_core.output_parsers import StrOutputParser
 from docling.document_converter import DocumentConverter
 
 # --- Context Forge Gateway ---
-CONTEXT_FORGE_URL = "http://localhost:4444"
-CONTEXT_FORGE_CREDS = {"username": "admin@example.com", "password": "changeme"}
+CONTEXT_FORGE_URL  = os.environ.get("MCPGATEWAY_URL", "http://localhost:4444")
+CONTEXT_FORGE_CREDS = {
+    "username": os.environ.get("CONTEXT_FORGE_ADMIN_EMAIL", "admin@example.com"),
+    "password": os.environ.get("CONTEXT_FORGE_ADMIN_PASSWORD", "changeme"),
+}
 
 @st.cache_data(ttl=270, show_spinner=False)
 def get_gateway_token() -> str:
