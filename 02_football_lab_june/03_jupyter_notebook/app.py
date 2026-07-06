@@ -361,8 +361,9 @@ if st.button("Predict Match & Analyze Pressure", type="primary", use_container_w
             # 3. Standardize numbering and enforce clean line spacing
             clean_sentences = []
             for idx, line in enumerate(filtered_lines, start=1):
-                content = re.sub(r'^\b\d+\.\s*', '', line)  # Strip any loose historical numbers
-                clean_sentences.append(f"{idx}. {content}")
+                content = re.sub(r'^\d+\.\s*', '', line).strip()  # Strip existing numbers
+                if content:  # Skip empty segments
+                    clean_sentences.append(f"{idx}. {content}")
             
             # Join with markdown double-newlines for a crisp visual list
             final_output = "\n\n".join(clean_sentences)
