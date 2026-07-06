@@ -73,7 +73,8 @@ ml_model, team_stats, feature_cols = load_artifacts()
 
 # --- DOCLING: PDF SCOUTING REPORT PARSER ---
 def extract_scouting_context(uploaded_file) -> str:
-    """Uses Docling to extract and return text from an uploaded PDF (first 5 pages only)."""
+    """Uses Docling to extract text from an uploaded PDF.
+    Tries full document first, then falls back to smaller page chunks on memory errors."""
     try:
         from docling.datamodel.pipeline_options import PdfPipelineOptions
         from docling.datamodel.base_models import InputFormat
@@ -83,18 +84,30 @@ def extract_scouting_context(uploaded_file) -> str:
             tmp.write(uploaded_file.read())
             tmp_path = tmp.name
 
-        pipeline_options = PdfPipelineOptions()
-        pipeline_options.page_range = (1, 5)  # Only process first 5 pages
+        def _convert_pages(start: int, end: int) -> str:
+            pipeline_options = PdfPipelineOptions()
+            pipeline_options.page_range = (start, end)
+            converter = DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+                }
+            )
+            result = converter.convert(tmp_path)
+            return result.document.export_to_markdown() or ""
 
-        converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-            }
-        )
-        result = converter.convert(tmp_path)
-        text   = result.document.export_to_markdown()
-        # Truncate to 800 chars to stay within model token budget
-        return text[:800].strip() if text else ""
+        # Try progressively smaller chunks until one succeeds
+        for chunk_size in [20, 10, 5, 3]:
+            try:
+                text = _convert_pages(1, chunk_size)
+                if text.strip():
+                    return text[:800].strip()
+            except Exception:
+                continue  # memory error — try smaller chunk
+
+        # Last resort: try just page 1
+        text = _convert_pages(1, 1)
+        return text[:800].strip() if text.strip() else "[Could not extract text from PDF]"
+
     except Exception as e:
         return f"[Docling parse error: {str(e)}]"
 
