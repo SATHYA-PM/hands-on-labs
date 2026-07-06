@@ -137,22 +137,16 @@ def build_langchain():
             "scouting_context",
         ],
         template=(
-            "You are a sports psychologist. "
-            "Analyze the 2026 World Cup match between {team_a} and {team_b} "
-            "using only the data below. Do not repeat these instructions. "
-            "Do not add a summary or preamble. Start directly with sentence 1.\n\n"
+            "You are a sports psychologist analyzing a 2026 World Cup match.\n\n"
+            "Match: {team_a} vs {team_b}\n"
             "Data:\n"
             "- {team_a}: win probability {p_a}%, recent form {form_a}, pressure index {pressure_a}%\n"
             "- {team_b}: win probability {p_b}%, recent form {form_b}, pressure index {pressure_b}%\n"
             "- Draw probability: {p_draw}%\n"
-            "- Major tournament: {is_major_tournament}, Neutral venue: {is_neutral}\n\n"
-            "{scouting_context}"
-            "Write exactly 3 numbered sentences:\n"
-            "1. How the win probability creates psychological stakes before kick-off.\n"
-            "2. How {team_a}'s pressure index of {pressure_a}% and recent form of {form_a} "
-            "affect their composure in the final 15 minutes.\n"
-            "3. How {team_b}'s pressure index of {pressure_b}% and recent form of {form_b} "
-            "affect their decision-making under stress."
+            "- Major tournament: {is_major_tournament}, Neutral venue: {is_neutral}\n"
+            "{scouting_context}\n"
+            "Write 3 numbered sentences of psychological analysis:\n"
+            "1."
         ),
     )
     # LCEL pipeline: prompt → llm → string parser
