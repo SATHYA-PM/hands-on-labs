@@ -145,8 +145,7 @@ def build_langchain():
             "- Draw probability: {p_draw}%\n"
             "- Major tournament: {is_major_tournament}, Neutral venue: {is_neutral}\n"
             "{scouting_context}\n"
-            "Write 3 numbered sentences of psychological analysis:\n"
-            "1."
+            "Write exactly 3 sentences of psychological analysis, numbered 1, 2 and 3:"
         ),
     )
     # LCEL pipeline: prompt → llm → string parser
@@ -177,7 +176,8 @@ with st.sidebar:
         st.error(f"Gateway: Offline ❌ ({e})")
 
     if gateway_online:
-        with st.expander("🔍 Inspect Option 3 Gateway Logs"):
+        with st.expander("🔍 Inspect Option 3 Gateway Logs", expanded=True):
+            # --- Local session telemetry ---
             local_logs = st.session_state.get("gateway_logs", [])
             if local_logs:
                 st.caption("📦 Last pipeline call:")
@@ -191,15 +191,19 @@ with st.sidebar:
                     trail = requests.get(
                         f"{CONTEXT_FORGE_URL}/api/logs/audit-trails",
                         headers={"Authorization": f"Bearer {token}"},
-                        timeout=3,
+                        timeout=5,
                     )
                     if trail.status_code == 200:
                         entries = trail.json()
                         if isinstance(entries, list) and entries:
                             st.caption("📋 Gateway audit trail (latest):")
                             st.json(entries[-1])
-            except Exception:
-                pass
+                        else:
+                            st.caption("No audit trail entries yet.")
+                    else:
+                        st.caption(f"Audit trail unavailable (status {trail.status_code})")
+            except Exception as ex:
+                st.caption(f"Audit trail error: {ex}")
 
     st.divider()
     st.header("📄 Scouting Report (Optional)")
