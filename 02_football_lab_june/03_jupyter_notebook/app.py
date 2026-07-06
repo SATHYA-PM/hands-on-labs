@@ -29,11 +29,11 @@ def get_gateway_token() -> str:
         r = requests.post(
             f"{CONTEXT_FORGE_URL}/auth/login",
             json=CONTEXT_FORGE_CREDS,
-            timeout=3,
+            timeout=5,
         )
         if r.status_code == 200:
             data = r.json()
-            return next(iter(data.values()), "")
+            return data.get("access_token") or next(iter(data.values()), "")
     except Exception:
         pass
     return ""
@@ -207,9 +207,15 @@ with st.sidebar:
     uploaded_pdf = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
     scouting_text = ""
     if uploaded_pdf:
-        with st.spinner("Docling is parsing your scouting report..."):
-            scouting_text = extract_scouting_context(uploaded_pdf)
-        if scouting_text.startswith("[Docling"):
+        # Cache by file name + size so Docling only runs once per unique upload
+        cache_key = f"{uploaded_pdf.name}_{uploaded_pdf.size}"
+        if st.session_state.get("pdf_cache_key") != cache_key:
+            with st.spinner("Docling is parsing your scouting report..."):
+                parsed = extract_scouting_context(uploaded_pdf)
+            st.session_state["pdf_cache_key"] = cache_key
+            st.session_state["pdf_cache_text"] = parsed
+        scouting_text = st.session_state.get("pdf_cache_text", "")
+        if scouting_text.startswith("[Docling") or scouting_text.startswith("[Could not"):
             st.error(scouting_text)
             scouting_text = ""
         else:
