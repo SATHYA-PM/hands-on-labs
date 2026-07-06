@@ -74,30 +74,38 @@ ml_model, team_stats, feature_cols = load_artifacts()
 # --- DOCLING: PDF SCOUTING REPORT PARSER ---
 def extract_scouting_context(uploaded_file) -> str:
     """Uses Docling to extract text from an uploaded PDF.
-    Tries full document first, then falls back to smaller page chunks on memory errors."""
+    Falls back to pypdf plain-text extraction if Docling runs out of memory."""
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(uploaded_file.read())
             tmp_path = tmp.name
 
+        # Try Docling page by page — stop as soon as we get text
         converter = DocumentConverter()
-
-        def _convert_pages(start: int, end: int) -> str:
-            result = converter.convert(tmp_path, page_range=(start, end))
-            return result.document.export_to_markdown() or ""
-
-        # Try progressively smaller chunks until one succeeds
-        for chunk_size in [20, 10, 5, 3]:
+        for end_page in [5, 3, 1]:
             try:
-                text = _convert_pages(1, chunk_size)
+                result = converter.convert(tmp_path, page_range=(1, end_page), raises_on_error=False)
+                text = result.document.export_to_markdown() or ""
                 if text.strip():
                     return text[:800].strip()
             except Exception:
-                continue  # memory error — try smaller chunk
+                continue
 
-        # Last resort: try just page 1
-        text = _convert_pages(1, 1)
-        return text[:800].strip() if text.strip() else "[Could not extract text from PDF]"
+        # Fallback: use pypdf (pure Python, no C++ memory issues)
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(tmp_path)
+            text = ""
+            for page in reader.pages[:10]:
+                text += page.extract_text() or ""
+                if len(text) >= 800:
+                    break
+            if text.strip():
+                return text[:800].strip()
+        except Exception:
+            pass
+
+        return "[Could not extract text from this PDF — try a smaller or text-based PDF]"
 
     except Exception as e:
         return f"[Docling parse error: {str(e)}]"
