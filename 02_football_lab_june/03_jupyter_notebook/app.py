@@ -76,23 +76,14 @@ def extract_scouting_context(uploaded_file) -> str:
     """Uses Docling to extract text from an uploaded PDF.
     Tries full document first, then falls back to smaller page chunks on memory errors."""
     try:
-        from docling.datamodel.pipeline_options import PdfPipelineOptions
-        from docling.datamodel.base_models import InputFormat
-        from docling.document_converter import PdfFormatOption
-
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(uploaded_file.read())
             tmp_path = tmp.name
 
+        converter = DocumentConverter()
+
         def _convert_pages(start: int, end: int) -> str:
-            pipeline_options = PdfPipelineOptions()
-            pipeline_options.page_range = (start, end)
-            converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-                }
-            )
-            result = converter.convert(tmp_path)
+            result = converter.convert(tmp_path, page_range=(start, end))
             return result.document.export_to_markdown() or ""
 
         # Try progressively smaller chunks until one succeeds
