@@ -673,6 +673,23 @@ input[type="range"] { width: 100%; accent-color: #4f6ef7; margin-top: 0.25rem; }
 .cost-halt-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
 .cost-card--repair { border-color: #c4b5fd; background: #faf5ff; }
 .cost-card--repair .cost-card-value { color: #6d28d9; }
+.cost-card--style-repair { border-color: #a78bfa; background: #f5f3ff; }
+.cost-card--style-repair .cost-card-value { color: #7c3aed; }
+
+/* repair-type badge shown inline in the Pipeline Trace table */
+.repair-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.repair-badge--cycle-repair { background: #ede9fe; color: #5b21b6; }
+.repair-badge--style-repair  { background: #f3e8ff; color: #7c3aed; }
 
 .cost-summary-row {
   display: flex;

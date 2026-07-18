@@ -10,26 +10,31 @@ interface Props {
   tokenCeiling?: number;
 }
 
-// Covers the three agent label variants the backend can now emit:
-//   StoryGeneratorAgent           → full generation pass
-//   StoryGeneratorAgent[repair]   → diff-patch repair pass
-//   StoryGeneratorAgent[budget-halt] → aborted due to insufficient budget
+// Covers all agent label variants the backend can now emit:
+//   StoryGeneratorAgent                → full generation pass
+//   StoryGeneratorAgent[cycle-repair]  → diff-patch cycle repair pass
+//   StoryGeneratorAgent[style-repair]  → diff-patch style repair pass
+//   StoryGeneratorAgent[budget-halt]   → aborted due to insufficient budget
 const AGENT_COLORS: Record<string, string> = {
-  "StoryGeneratorAgent":              "#3b82f6",
-  "StoryGeneratorAgent[repair]":      "#6366f1",
-  "StoryGeneratorAgent[budget-halt]": "#ef4444",
-  "StyleVaultAgent":                  "#a855f7",
-  "SandboxValidatorAgent":            "#f59e0b",
-  "ComplianceAgent":                  "#22c55e",
+  "StoryGeneratorAgent":                    "#3b82f6",
+  "StoryGeneratorAgent[cycle-repair]":      "#6366f1",
+  "StoryGeneratorAgent[style-repair]":      "#7c3aed",
+  "StoryGeneratorAgent[budget-halt]":       "#ef4444",
+  "StyleVaultAgent":                        "#a855f7",
+  "SandboxValidatorAgent":                  "#f59e0b",
+  "GraniteGuardianAgent":                   "#0f62fe",
+  "ComplianceAgent":                        "#22c55e",
 };
 
 const AGENT_SHORT: Record<string, string> = {
-  "StoryGeneratorAgent":              "Generator",
-  "StoryGeneratorAgent[repair]":      "Generator[repair]",
-  "StoryGeneratorAgent[budget-halt]": "Generator[halt]",
-  "StyleVaultAgent":                  "Style",
-  "SandboxValidatorAgent":            "Sandbox",
-  "ComplianceAgent":                  "Compliance",
+  "StoryGeneratorAgent":                    "Generator",
+  "StoryGeneratorAgent[cycle-repair]":      "Generator[cycle✦]",
+  "StoryGeneratorAgent[style-repair]":      "Generator[style✦]",
+  "StoryGeneratorAgent[budget-halt]":       "Generator[halt]",
+  "StyleVaultAgent":                        "Style",
+  "SandboxValidatorAgent":                  "Sandbox",
+  "GraniteGuardianAgent":                   "Guardian",
+  "ComplianceAgent":                        "Compliance",
 };
 
 function shortLabel(agent: string): string {
@@ -63,7 +68,10 @@ export default function CostDashboard({ spans, tokenSpend, tokenCeiling = 10_000
   const retries = Math.max(0, generatorSpans.length - 1);
 
   // Repair passes are a subset of retries that used the diff-patch path.
-  const repairPasses = spans.filter((s) => s.agent === "StoryGeneratorAgent[repair]").length;
+  // Count both cycle-repair and style-repair spans.
+  const cycleRepairPasses = spans.filter((s) => s.agent === "StoryGeneratorAgent[cycle-repair]").length;
+  const styleRepairPasses = spans.filter((s) => s.agent === "StoryGeneratorAgent[style-repair]").length;
+  const repairPasses = cycleRepairPasses + styleRepairPasses;
 
   // Budget halt: any span with the budget-halt label signals an aborted run.
   const budgetHalted = spans.some((s) => s.agent === "StoryGeneratorAgent[budget-halt]");
@@ -112,10 +120,16 @@ export default function CostDashboard({ spans, tokenSpend, tokenCeiling = 10_000
               <span className="cost-card-value">{retries}</span>
               <span className="cost-card-label">Retries</span>
             </div>
-            {repairPasses > 0 && (
+            {cycleRepairPasses > 0 && (
               <div className="cost-card cost-card--repair">
-                <span className="cost-card-value">{repairPasses}</span>
-                <span className="cost-card-label">Repair Passes</span>
+                <span className="cost-card-value">{cycleRepairPasses}</span>
+                <span className="cost-card-label">Cycle Repairs</span>
+              </div>
+            )}
+            {styleRepairPasses > 0 && (
+              <div className="cost-card cost-card--style-repair">
+                <span className="cost-card-value">{styleRepairPasses}</span>
+                <span className="cost-card-label">Style Repairs</span>
               </div>
             )}
           </div>
@@ -159,16 +173,22 @@ export default function CostDashboard({ spans, tokenSpend, tokenCeiling = 10_000
               <table className="spans-table">
                 <thead>
                   <tr>
-                    <th>Agent</th><th>Duration</th><th>Tokens</th><th>Ceiling</th><th>Status</th>
+                    <th>Agent</th><th>Duration</th><th>Tokens</th><th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {spans.map((s, i) => (
                     <tr key={i} className={s.success ? "" : "row--fail"}>
-                      <td>{shortLabel(s.agent)}</td>
+                      <td>
+                        {shortLabel(s.agent)}
+                        {s.repair_type && s.repair_type !== "none" && (
+                          <span className={`repair-badge repair-badge--${s.repair_type}`}>
+                            {s.repair_type === "cycle-repair" ? "cycle" : "style"}
+                          </span>
+                        )}
+                      </td>
                       <td>{s.duration_ms}ms</td>
-                      <td>{s.tokens_used != null ? s.tokens_used.toLocaleString() : s.tokens != null ? s.tokens.toLocaleString() : "—"}</td>
-                      <td>{s.token_ceiling != null ? s.token_ceiling.toLocaleString() : "—"}</td>
+                      <td>{s.tokens != null ? s.tokens.toLocaleString() : "—"}</td>
                       <td>{s.success ? "✓" : "✗"}</td>
                     </tr>
                   ))}

@@ -15,6 +15,7 @@ from agents.story_generator import story_generator_node
 from agents.style_vault_agent import style_vault_node
 from agents.sandbox_validator import sandbox_validator_node
 from agents.compliance_agent import compliance_node
+from agents.granite_guardian import granite_guardian_node
 
 
 # ── Budget reserve constants ──────────────────────────────────────────────────
@@ -40,16 +41,19 @@ def _has_budget_for_retry(state: ScenePilotState) -> bool:
     do NOT store it in state to avoid stale-value bugs across retries.
 
     Reserve selection:
-      - Repair mode (broken_nodes present + last_story available): 1,200 tokens
-      - Full-generation fallback (anything else):                   9,500 tokens
+      - Repair mode (last_story available, any failure reason): 1,200 tokens
+        This covers both cycle-repair and style-repair paths.
+      - Full-generation fallback (no saved story yet):          9,500 tokens
     """
     ceiling: int = int(os.environ.get("TOKEN_BUDGET_LIMIT", 10_000))
     spent: int = state.get("token_spend", 0)
     remaining: int = ceiling - spent
 
-    broken = state.get("broken_nodes") or []
+    # Style-only retries also qualify as repair — they send a targeted patch
+    # not a full regeneration.  The only requirement is that last_story exists
+    # so the generator has a base to diff against.
     last = state.get("last_story")
-    will_repair = bool(broken) and last is not None
+    will_repair = last is not None
 
     reserve = _REPAIR_RESERVE if will_repair else _FULL_GEN_RESERVE
     return remaining >= reserve
@@ -124,6 +128,7 @@ def build_graph() -> StateGraph:
     graph.add_node("generate", story_generator_node)
     graph.add_node("style_vault", style_vault_node)
     graph.add_node("sandbox", sandbox_validator_node)
+    graph.add_node("guardian", granite_guardian_node)
     graph.add_node("compliance", compliance_node)
     graph.add_node("retry", _increment_retry)
     graph.add_node("fail", _fail_node)
@@ -137,15 +142,16 @@ def build_graph() -> StateGraph:
         "sandbox",
         _route_after_sandbox,
         {
-            "compliance": "compliance",
+            "compliance": "guardian",   # always pass through Guardian first
             "retry": "retry",
             "fail": "fail",
         },
     )
 
-    graph.add_edge("retry", "generate")    # self-correction loop
+    graph.add_edge("guardian", "compliance")   # Guardian -> Compliance
+    graph.add_edge("retry", "generate")        # self-correction loop
     graph.add_edge("compliance", END)
-    graph.add_edge("fail", "compliance")   # still persist audit on failure
+    graph.add_edge("fail", "compliance")       # still persist audit on failure
 
     return graph
 
@@ -183,6 +189,8 @@ def run_pipeline(premise: str, genre: str, tone: float) -> ScenePilotState:
         "repair_mode": False,
         # Budget gate fields — false at pipeline start.
         "budget_halt": False,
+        # Guardian — None until the node runs.
+        "guardian_check": None,
         "audit": None,
         "agent_spans": [],
         "token_spend": 0,

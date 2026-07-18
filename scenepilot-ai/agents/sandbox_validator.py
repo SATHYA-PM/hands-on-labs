@@ -42,20 +42,28 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
         LOOP_DETECTIONS.inc(result["cycles_detected"])
 
     passed = result["passed"]
-    approved = passed and len(state.get("style_check", {}).get("violations", [])) == 0
+    style_violations: list[str] = state.get("style_check", {}).get("violations", [])
+    approved = passed and len(style_violations) == 0
 
     if not approved:
         SANDBOX_REJECTIONS.inc()
     else:
         STORIES_GENERATED.inc()
 
-    # ── Capture broken cycle edges for diff-based repair ──────────────────
-    # invalid_edges is a list of (src, dst) tuples identifying the exact
-    # choice routing properties that introduced cycles.  We persist the
-    # current story as last_story so the repair generator can patch it
-    # instead of regenerating the entire narrative from scratch.
+    # ── Capture repair state for both cycle failures AND style failures ───
+    #
+    # Repair mode activates on ANY retry where we have a saved story:
+    #   - Cycle failure  → broken_nodes carries the back-edge pairs
+    #   - Style failure  → broken_nodes stays [] but style_violations is non-empty
+    #
+    # In both cases we persist last_story so the generator can send a targeted
+    # patch prompt instead of a full cold regeneration (~80 % token saving).
     invalid_edges: list[tuple[str, str]] = result.get("invalid_edges", [])
     broken_nodes = invalid_edges if invalid_edges else state.get("broken_nodes") or []
+
+    # Always persist the current story when not approved so the repair pass
+    # has a base to patch against.  Previously this only ran when cycles were
+    # found; style-only failures left last_story=None, blocking repair mode.
     last_story = story if not approved else state.get("last_story")
 
     span = {
@@ -65,6 +73,7 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
         "cycles": result["cycles_detected"],
         "invalid_edges": invalid_edges,
         "schema_errors": len(result["schema_errors"]),
+        "style_violations": len(style_violations),
         "success": True,
     }
 

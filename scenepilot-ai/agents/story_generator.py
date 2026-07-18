@@ -2,11 +2,21 @@
 StoryGeneratorAgent — calls Groq (primary) or Gemini (fallback) to turn a
 story premise into a fully-structured branching narrative JSON.
 
-On retry_count >= 1 with broken_nodes present the agent switches to
-REPAIR MODE: instead of regenerating the full story it sends a targeted
-diff-patch prompt, receives a minimal JSON patch, and merges it back into
-the previous generation via core.utils.merge_patch — cutting retry token
-spend by >80 %.
+Repair mode (retry_count >= 1, last_story present)
+───────────────────────────────────────────────────
+Two specialised diff-patch prompts replace the expensive full-regeneration:
+
+  • CYCLE REPAIR  — broken_nodes is non-empty (graph back-edges detected).
+    Sends only the N affected scene objects + edge list.  LLM returns a
+    minimal patch mapping scene_id → new choices[].  Token cost: ~600–900.
+
+  • STYLE REPAIR  — broken_nodes is empty but style_violations is non-empty
+    (FAISS / tone check failed).  Sends only the violating scene objects +
+    the style-checker report.  LLM rewrites only those scenes' text/tone.
+    Token cost: ~500–800.
+
+In both cases core.utils.merge_patch deep-merges the patch back into
+last_story, cutting retry token spend by >80 % vs a full cold regeneration.
 
 Defence-in-depth budget guard: at node entry the remaining token balance is
 checked against the expected cost of the upcoming LLM call.  If insufficient,
@@ -84,15 +94,16 @@ def _build_user_prompt(premise: str, genre: str, tone: float) -> str:
     )
 
 
-# ── Repair-mode (diff-patch) prompt ──────────────────────────────────────────
+# ── Repair-mode prompts (diff-patch) ─────────────────────────────────────────
 
-REPAIR_SYSTEM_PROMPT = """You are ScenePilot in REPAIR MODE.
-You will receive an existing branching narrative JSON and a list of cycle
-violations reported by the graph validator.
+# --- Cycle repair ---
 
-Your ONLY job is to break the detected cycles by correcting the routing of the
-listed scenes. Output ONLY a JSON patch object — no markdown fences, no
-commentary, no other fields.
+CYCLE_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in CYCLE REPAIR MODE.
+You will receive a subset of an existing branching narrative and a list of
+graph cycle violations detected by the validator.
+
+Your ONLY job is to break the cycles by correcting the routing of the listed
+scenes. Output ONLY a JSON patch object — no markdown fences, no commentary.
 
 Patch schema:
 {
@@ -105,21 +116,19 @@ Patch schema:
 
 Rules:
 - Do NOT rewrite scene "text", "tone", or "id" fields.
-- Do NOT add, remove, or alter any scene that is not in the broken_nodes list.
+- Do NOT touch any scene that is not in the broken_nodes list.
 - Each patched scene's choices MUST point to a scene with a HIGHER id number than the source scene (forward-only edges).
 - Keep the same number of choices per scene where possible.
 - Return ONLY the patch object — nothing else.
 """
 
 
-def _build_repair_prompt(
+def _build_cycle_repair_prompt(
     story: dict[str, Any],
     broken_nodes: list[tuple[str, str]],
     validation_issues: list[str],
 ) -> str:
-    """Build the compact repair user message (carries only what the LLM needs)."""
-    # Extract only the scene objects involved in the broken edges so we don't
-    # send the entire story (which could be thousands of tokens).
+    """Build the compact cycle-repair user message."""
     broken_ids: set[str] = set()
     for src, dst in broken_nodes:
         broken_ids.add(src)
@@ -135,9 +144,69 @@ def _build_repair_prompt(
         + json.dumps({"scenes": relevant_scenes}, indent=2)
         + "\n\nCYCLE VIOLATIONS REPORTED BY VALIDATOR:\n"
         + "\n".join(f"  - {issue}" for issue in validation_issues)
-        + "\n\nBROKEN ROUTING EDGES (source → target pairs forming cycles):\n"
+        + "\n\nBROKEN ROUTING EDGES (source \u2192 target pairs forming cycles):\n"
         + json.dumps(broken_nodes)
         + "\n\nReturn the patch JSON now."
+    )
+
+
+# --- Style repair ---
+
+STYLE_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in STYLE REPAIR MODE.
+You will receive a subset of an existing branching narrative and a list of
+style violations reported by the style checker.
+
+Your ONLY job is to rewrite the "text" and/or "tone" of the listed scenes so
+they conform to the style guidelines. Output ONLY a JSON patch object — no
+markdown fences, no commentary.
+
+Patch schema:
+{
+  "<scene_id>": {
+    "text": "<rewritten scene text — 1-2 sentences>",
+    "tone": "<tense|hopeful|dark|neutral|playful>"
+  },
+  ...
+}
+
+Rules:
+- Do NOT change scene "id", "choices", or any field not listed above.
+- Do NOT touch any scene that is not in the violations list.
+- Scene text must be 1-2 sentences maximum — no padding.
+- Tone must match the story genre: thriller → tense/dark/neutral, fantasy → hopeful/tense/neutral, sci-fi → tense/neutral/dark/hopeful.
+- Return ONLY the patch object — nothing else.
+"""
+
+
+def _build_style_repair_prompt(
+    story: dict[str, Any],
+    style_violations: list[str],
+) -> str:
+    """Build the compact style-repair user message.
+
+    Extracts only the violating scene IDs from the violation strings so we
+    never send the entire story payload to the LLM.
+    """
+    # Violation strings are formatted: "Scene scene_NNN may violate ..."
+    # or "Scene scene_NNN has tone ..."  — parse the scene_id out.
+    import re
+    violating_ids: set[str] = set()
+    for v in style_violations:
+        m = re.search(r"(scene_\d+)", v)
+        if m:
+            violating_ids.add(m.group(1))
+
+    relevant_scenes = [
+        s for s in story.get("scenes", [])
+        if s.get("id") in violating_ids
+    ]
+
+    return (
+        "EXISTING STORY (violating scenes only):\n"
+        + json.dumps({"scenes": relevant_scenes}, indent=2)
+        + "\n\nSTYLE VIOLATIONS REPORTED BY CHECKER:\n"
+        + "\n".join(f"  - {v}" for v in style_violations)
+        + "\n\nReturn the style patch JSON now."
     )
 
 
@@ -245,7 +314,19 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     retry_count = state.get("retry_count", 0)
     broken_nodes: list[tuple[str, str]] = state.get("broken_nodes") or []
     last_story: dict[str, Any] | None = state.get("last_story")
-    repair_mode = retry_count >= 1 and bool(broken_nodes) and last_story is not None
+    style_violations: list[str] = (
+        state.get("validation", {}) or {}
+    ).get("style_violations", [])
+
+    # Repair mode: any retry where we have a saved story to patch against.
+    # Two sub-modes:
+    #   cycle_repair — broken_nodes is non-empty  (graph back-edges present)
+    #   style_repair — broken_nodes empty but style violations exist
+    # If neither condition holds on a retry we still fall back to full regen
+    # (e.g. schema error on first pass before any story was saved).
+    repair_mode = retry_count >= 1 and last_story is not None
+    cycle_repair = repair_mode and bool(broken_nodes)
+    style_repair = repair_mode and not cycle_repair and bool(style_violations)
 
     # ── Defence-in-depth budget guard ────────────────────────────────────────
     # The router already checks budget before entering this node, but this
@@ -255,6 +336,8 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     spent: int = state.get("token_spend", 0)
     remaining: int = ceiling - spent
     reserve: int = _REPAIR_RESERVE if repair_mode else _FULL_GEN_RESERVE
+    # repair_mode already covers both cycle_repair and style_repair above,
+    # so _REPAIR_RESERVE (~1,200 tokens) is used for both targeted patch paths.
 
     if remaining < reserve:
         # Surface the best story we already have rather than returning None.
@@ -290,30 +373,67 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
 
     # ── Main generation / repair path ─────────────────────────────────────────
 
-    if repair_mode:
-        # ── REPAIR MODE: emit a tiny patch rather than a full story ──────
+    if cycle_repair:
+        # ── CYCLE REPAIR: patch only the back-edge routing properties ────
         validation = state.get("validation") or {}
         validation_issues: list[str] = validation.get("issues") or []
 
-        user_prompt = _build_repair_prompt(last_story, broken_nodes, validation_issues)
+        user_prompt = _build_cycle_repair_prompt(last_story, broken_nodes, validation_issues)
 
         try:
-            raw, tokens = _call_groq(REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+            raw, tokens = _call_groq(CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
             patch = _parse_patch(raw)
             story = merge_patch(last_story, patch)
             story = _break_cycles(story)   # safety net: strip any lingering back-edges
         except Exception as groq_err:
-            error = f"Groq repair: {groq_err}"
+            error = f"Groq cycle-repair: {groq_err}"
             try:
-                raw, tokens = _call_gemini(REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+                raw, tokens = _call_gemini(CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
                 patch = _parse_patch(raw)
                 story = merge_patch(last_story, patch)
                 story = _break_cycles(story)
                 error = None
             except Exception as gemini_err:
-                error = f"Both LLMs failed in repair mode. Groq: {groq_err} | Gemini: {gemini_err}"
+                error = f"Both LLMs failed in cycle-repair mode. Groq: {groq_err} | Gemini: {gemini_err}"
 
-        agent_label = "StoryGeneratorAgent[repair]"
+        agent_label = "StoryGeneratorAgent[cycle-repair]"
+
+    elif style_repair:
+        # ── STYLE REPAIR: rewrite only the violating scenes' text/tone ───
+        # The style patch returns { scene_id: {text, tone} } — a different
+        # shape from the cycle patch { scene_id: choices[] }.  We apply it
+        # manually here before delegating to merge_patch for the rest.
+        user_prompt = _build_style_repair_prompt(last_story, style_violations)
+
+        def _apply_style_patch(base: dict[str, Any], spatch: dict[str, Any]) -> dict[str, Any]:
+            import copy
+            merged = copy.deepcopy(base)
+            scene_index = {s["id"]: s for s in merged.get("scenes", []) if "id" in s}
+            for scene_id, fields in spatch.items():
+                scene = scene_index.get(scene_id)
+                if scene is None or not isinstance(fields, dict):
+                    continue
+                if "text" in fields:
+                    scene["text"] = fields["text"]
+                if "tone" in fields:
+                    scene["tone"] = fields["tone"]
+            return merged
+
+        try:
+            raw, tokens = _call_groq(STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+            patch = _parse_patch(raw)
+            story = _apply_style_patch(last_story, patch)
+        except Exception as groq_err:
+            error = f"Groq style-repair: {groq_err}"
+            try:
+                raw, tokens = _call_gemini(STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+                patch = _parse_patch(raw)
+                story = _apply_style_patch(last_story, patch)
+                error = None
+            except Exception as gemini_err:
+                error = f"Both LLMs failed in style-repair mode. Groq: {groq_err} | Gemini: {gemini_err}"
+
+        agent_label = "StoryGeneratorAgent[style-repair]"
     else:
         # ── FULL GENERATION MODE ─────────────────────────────────────────
         try:
@@ -352,11 +472,17 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
 
         agent_label = "StoryGeneratorAgent"
 
+    repair_label = (
+        "cycle-repair" if cycle_repair
+        else "style-repair" if style_repair
+        else "none"
+    )
     span = {
         "agent": agent_label,
         "duration_ms": int((time.time() - span_start) * 1000),
         "tokens": tokens,
         "repair_mode": repair_mode,
+        "repair_type": repair_label,
         "tokens_used": spent + tokens,
         "token_ceiling": ceiling,
         "cycles": (state.get("validation") or {}).get("cycles_detected", 0),

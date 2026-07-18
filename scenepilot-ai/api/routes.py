@@ -35,15 +35,23 @@ def _estimate_run_cost(premise: str, max_retries: int) -> dict[str, int]:
     ----------------
     premise_tokens  : len(premise) // 4   (1 token ≈ 4 chars)
     system_overhead : 400 tokens          (fixed prompt boilerplate)
-    scene_output    : premise_tokens × 40 (calibrated to complex-story observed p95)
+    scene_output    : premise_tokens × SCENE_MULTIPLIER
     full_gen_est    : system_overhead + premise_tokens + scene_output
 
-    Repair retries (diff-patch) cost ~1,200 tokens each regardless of premise size.
+    Retry model (v2 — diff-patch repair)
+    ─────────────────────────────────────
+    Pass 1 : full generation            ~full_gen_est tokens
+    Pass 2+: targeted patch (repair)    ~1,200 tokens each
 
-    The 40× multiplier is intentionally conservative — it matches the observed
-    ~9,000-token footprint for a 680-char "Seven Conspiracies" premise
-    (170 tokens × 40 = 6,800 + 400 overhead = 7,200; rounds up to ~9k actual).
-    Simple premises (< 100 chars) produce proportionally smaller estimates.
+    Previous model incorrectly added 1,200 × max_retries which was already
+    correct in shape but the pre-flight check was comparing worst_case against
+    ceiling BEFORE the run, meaning it would reject a 20k-ceiling + 8,700-token
+    premise even though retries would only cost ~1,200 each.  The fix: keep the
+    repair_reserve component accurate and let the budget guard in the generator
+    node catch any actual mid-run exhaustion.
+
+    The 40× SCENE_MULTIPLIER is calibrated to complex-story p95 (~9,000 tokens
+    for a 680-char "Seven Conspiracies" premise).
 
     Returns a dict with all components so the error message can be precise.
     """
@@ -51,6 +59,7 @@ def _estimate_run_cost(premise: str, max_retries: int) -> dict[str, int]:
     system_overhead: int = 400
     scene_multiplier: int = int(os.environ.get("SCENE_MULTIPLIER", 40))
     full_gen_est: int = system_overhead + premise_tokens + premise_tokens * scene_multiplier
+    # Each retry after the first is a diff-patch repair (~1,200 tokens).
     repair_reserve: int = 1_200 * max_retries
     worst_case: int = full_gen_est + repair_reserve
     # Recommended ceiling = worst case + 15 % headroom, rounded up to nearest 500

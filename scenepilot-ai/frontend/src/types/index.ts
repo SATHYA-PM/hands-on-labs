@@ -38,6 +38,7 @@ export interface AgentSpan {
   error?: string;
   // Repair / budget-gate observability fields (populated by story_generator_node)
   repair_mode?: boolean;
+  repair_type?: "cycle-repair" | "style-repair" | "none";  // sub-mode of repair
   tokens_used?: number;   // cumulative spend including this span
   token_ceiling?: number; // ceiling value at time of this span
 }
