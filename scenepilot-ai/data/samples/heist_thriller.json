@@ -1,0 +1,129 @@
+{
+  "title": "The Diamond Heist",
+  "genre": "thriller",
+  "_demo_antipatterns": ["circular_loop_at_scene_004"],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "text": "The museum closes in ten minutes. You stand outside the staff entrance, earpiece in, pulse hammering. Your fence has a buyer for the Kohinoor replica — but your partner just went dark.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Go in alone", "next": "scene_002" },
+        { "text": "Wait five more minutes for your partner", "next": "scene_003" }
+      ]
+    },
+    {
+      "id": "scene_002",
+      "text": "The service corridor is empty. Motion sensors sweep every eight seconds. You count under your breath — seven, eight. Go.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Sprint to the display room", "next": "scene_005" },
+        { "text": "Disable the junction box first", "next": "scene_006" }
+      ]
+    },
+    {
+      "id": "scene_003",
+      "text": "A shadow rounds the corner — it's Mira, your partner. Her jacket is torn. 'Guards changed shift early,' she whispers. 'We have a problem.'",
+      "tone": "tense",
+      "choices": [
+        { "text": "Abort and leave together", "next": "scene_004" },
+        { "text": "Adapt the plan — go through the roof", "next": "scene_007" }
+      ]
+    },
+    {
+      "id": "scene_004",
+      "text": "You turn for the exit — only to find two guards blocking it. They haven't seen you yet. You back into the supply room. There is only one other way out: through the vault corridor.",
+      "tone": "dark",
+      "choices": [
+        { "text": "Push through the vault corridor", "next": "scene_002" },
+        { "text": "Hide and wait for a shift change", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_005",
+      "text": "The display case is locked with a biometric seal. Your portable spoofer takes thirty seconds it doesn't have. Footsteps in the hall.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Use the spoofer and risk being caught", "next": "scene_009" },
+        { "text": "Smash the case and run", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_006",
+      "text": "The junction box sparks open. All cameras on floor two go dark. Six minutes until the security room notices the outage.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Head straight to the display room", "next": "scene_005" },
+        { "text": "Sweep for extra guards first", "next": "scene_011" }
+      ]
+    },
+    {
+      "id": "scene_007",
+      "text": "The roof hatch is unlocked — almost suspiciously so. Mira mouths 'trap?' You shrug and go up. The city glitters below. The skylight to the display room is three metres away.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Rappel through the skylight", "next": "scene_005" },
+        { "text": "Scout the roof perimeter first", "next": "scene_011" }
+      ]
+    },
+    {
+      "id": "scene_008",
+      "text": "An hour passes. The supply room is suffocating. Dawn light threads under the door. Shift change — but now a detective is with the guards.",
+      "tone": "dark",
+      "choices": [
+        { "text": "Surrender — the game is up", "next": "scene_012" },
+        { "text": "Make a run for it", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_009",
+      "text": "The spoofer clicks. The case hisses open. Replica in hand — cold, heavy, perfect. Twenty-eight seconds left. Then the alarms scream.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Run for the roof exit", "next": "scene_013" },
+        { "text": "Hide the replica and blend in with staff", "next": "scene_014" }
+      ]
+    },
+    {
+      "id": "scene_010",
+      "text": "Glass explodes. You snatch the replica and sprint. Every alarm in the building ignites. You have thirty seconds before the exits lock.",
+      "tone": "dark",
+      "choices": [
+        { "text": "Head for the roof", "next": "scene_013" },
+        { "text": "Dive into the loading dock", "next": "scene_015" }
+      ]
+    },
+    {
+      "id": "scene_011",
+      "text": "A guard is posted at the north stairwell — but he's asleep, chin on chest. You slip past without a sound.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Continue to the display room", "next": "scene_005" }
+      ]
+    },
+    {
+      "id": "scene_012",
+      "text": "Hands up. The detective is almost sympathetic. 'We've been watching you for six months,' she says. The replica was a decoy. You were the test.",
+      "tone": "dark",
+      "choices": []
+    },
+    {
+      "id": "scene_013",
+      "text": "The getaway bike idles in the alley. You drop into the seat, the replica strapped to your chest. The city swallows you whole. The fence will be very pleased.",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_014",
+      "text": "You pull on a visitor lanyard and walk calmly toward the exit with the tour group. The guards scan faces. They wave you through. Outside, the night air tastes like freedom.",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_015",
+      "text": "The loading dock is a dead end. Shutter doors sealed. You press against the wall as flashlights sweep the space. There is nowhere left to go.",
+      "tone": "dark",
+      "choices": []
+    }
+  ]
+}

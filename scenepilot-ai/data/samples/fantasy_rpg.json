@@ -1,0 +1,124 @@
+{
+  "title": "Ember & The Forgotten Crown",
+  "genre": "fantasy",
+  "_demo_antipatterns": ["dead_end_node_scene_007", "single_choice_scene_011"],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "text": "The oracle's lantern dies the moment you cross the Ashwood threshold. The forest holds its breath. Somewhere ahead, the Forgotten Crown waits — and so does whatever stole it.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Follow the ember trail east", "next": "scene_002" },
+        { "text": "Climb a tree to get your bearings", "next": "scene_003" }
+      ]
+    },
+    {
+      "id": "scene_002",
+      "text": "The embers pulse like a heartbeat, leading you to a stone bridge over a black river. A hooded figure blocks the crossing. It does not speak. It only holds out one hand.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Give it the oracle's lantern", "next": "scene_004" },
+        { "text": "Draw your blade and demand passage", "next": "scene_005" }
+      ]
+    },
+    {
+      "id": "scene_003",
+      "text": "From the canopy you spot three things: smoke to the north, light to the east, and something enormous moving through the trees to the west.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Head toward the smoke", "next": "scene_006" },
+        { "text": "Head toward the light", "next": "scene_002" },
+        { "text": "Investigate the moving shape", "next": "scene_007" }
+      ]
+    },
+    {
+      "id": "scene_004",
+      "text": "The figure dissolves into moths. The bridge is yours. On the far bank, an ancient door stands alone in the clearing, carved with the seal of the lost kingdom.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Open the door", "next": "scene_008" },
+        { "text": "Study the seal first", "next": "scene_009" }
+      ]
+    },
+    {
+      "id": "scene_005",
+      "text": "Your blade passes through the figure as if through smoke. It laughs — a sound like cracking ice — and the bridge dissolves beneath your feet.",
+      "tone": "dark",
+      "choices": [
+        { "text": "Grab the riverbank roots", "next": "scene_006" },
+        { "text": "Let the current carry you", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_006",
+      "text": "The smoke leads to a camp of three forest-witches roasting something unidentifiable. One looks up. 'We expected you yesterday,' she says.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Ask about the Crown", "next": "scene_009" },
+        { "text": "Ask how they knew you were coming", "next": "scene_011" }
+      ]
+    },
+    {
+      "id": "scene_007",
+      "text": "It is a Thornwarden — a creature bound to protect the forest from those who carry royal blood. It has your scent.",
+      "tone": "dark",
+      "choices": []
+    },
+    {
+      "id": "scene_008",
+      "text": "Beyond the door is a throne room perfectly preserved under centuries of dust. The Crown rests on the throne. It is unguarded. It is also glowing.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Take the Crown", "next": "scene_012" },
+        { "text": "Call out to see if anyone is present", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_009",
+      "text": "The oldest witch traces a map in the ash. 'The Crown is not lost. It is waiting. It will only come to one who does not want power — only restoration.'",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Accept the witches' guidance", "next": "scene_008" },
+        { "text": "Go alone — take the river south", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_010",
+      "text": "The river carries you south, past ruins of the old kingdom. You wash up at the base of a tower. A rope ladder hangs from the window above.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Climb the ladder to the tower", "next": "scene_008" },
+        { "text": "Search the ruins for clues", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_011",
+      "text": "The witch smiles but does not answer. Instead she presses a warm coal into your palm. It does not burn. 'For when the dark gets thick,' she says.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Continue on to the sealed door", "next": "scene_004" }
+      ]
+    },
+    {
+      "id": "scene_012",
+      "text": "The moment your fingers close around the Crown, the dust lifts. The throne room breathes. Outside, the Ashwood erupts in blossom. The kingdom stirs.",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_013",
+      "text": "Silence. Then a voice from everywhere at once: 'Only the worthy reach this room. You have been watched since the Ashwood threshold. You may take the Crown — or leave it and free us all.'",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Take the Crown — restore the kingdom", "next": "scene_012" },
+        { "text": "Leave the Crown — break the binding", "next": "scene_014" }
+      ]
+    },
+    {
+      "id": "scene_014",
+      "text": "You step back. The Crown shatters into a thousand embers that fly upward and become stars. The forest exhales. Whatever was bound here is free. So are you.",
+      "tone": "hopeful",
+      "choices": []
+    }
+  ]
+}

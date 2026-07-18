@@ -1,0 +1,33 @@
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-dotenv==1.0.1
+pydantic==2.7.1
+
+# ── LangGraph / LangChain ─────────────────────────────────────────────────────
+langgraph==0.1.5
+langchain-core==0.2.5
+
+# ── LLM clients ───────────────────────────────────────────────────────────────
+groq==0.9.0
+google-generativeai==0.7.2
+
+# ── Embeddings + FAISS ────────────────────────────────────────────────────────
+# numpy must be pinned below 2.0 — faiss-cpu C extensions are compiled against
+# numpy 1.x ABI; importing faiss under numpy 2.x raises _ARRAY_API not found.
+numpy<2.0
+sentence-transformers==3.0.1
+faiss-cpu==1.7.4
+
+# ── Graph / validation ────────────────────────────────────────────────────────
+networkx==3.3
+
+# ── Observability ─────────────────────────────────────────────────────────────
+prometheus-client==0.20.0
+opentelemetry-api==1.24.0
+opentelemetry-sdk==1.24.0
+opentelemetry-exporter-otlp-proto-grpc==1.24.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+httpx==0.27.0
+json-repair==0.30.3

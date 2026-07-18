@@ -1,0 +1,115 @@
+{
+  "title": "Launch Day",
+  "genre": "marketing",
+  "_demo_antipatterns": ["tone_drift_scene_006_to_scene_008"],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "text": "Your new productivity app, Flowly, launches in 24 hours. Ten thousand people are on the waitlist. You're standing at the dashboard wondering: what do you post first?",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Share the origin story on social media", "next": "scene_002" },
+        { "text": "Send a teaser email to the waitlist", "next": "scene_003" }
+      ]
+    },
+    {
+      "id": "scene_002",
+      "text": "Your post gets 800 shares in an hour. Comments flood in: 'Finally!' and 'I've been waiting for this.' Your phone buzzes non-stop — in the best way.",
+      "tone": "playful",
+      "choices": [
+        { "text": "Go live on video to thank early fans", "next": "scene_004" },
+        { "text": "Reach out to three journalists personally", "next": "scene_005" }
+      ]
+    },
+    {
+      "id": "scene_003",
+      "text": "The email goes out with a 58% open rate — nearly double the industry average. Three hundred people click the 'I want early access' button within the first ten minutes.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Send a follow-up with a short demo video", "next": "scene_004" },
+        { "text": "DM the most engaged subscribers personally", "next": "scene_006" }
+      ]
+    },
+    {
+      "id": "scene_004",
+      "text": "The live stream draws 1,200 viewers. You demo the core feature — one-click focus mode — and the chat erupts with hearts. Flowly trends on two platforms.",
+      "tone": "playful",
+      "choices": [
+        { "text": "Announce a 30-day free trial on the spot", "next": "scene_007" },
+        { "text": "Tease tomorrow's launch with a countdown", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_005",
+      "text": "One journalist replies within the hour: 'I've been looking for exactly this tool. Can I get an exclusive walkthrough before launch?' You have 20 minutes to decide.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Say yes — an exclusive could be huge", "next": "scene_009" },
+        { "text": "Politely decline — you want a fair launch", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_006",
+      "text": "A competitor announces a nearly identical tool — right now — with a slick video. Your phone lights up with worried messages from your team.",
+      "tone": "dark",
+      "choices": [
+        { "text": "Pivot messaging to highlight your unique features", "next": "scene_010" },
+        { "text": "Panic-post a price cut announcement", "next": "scene_011" }
+      ]
+    },
+    {
+      "id": "scene_007",
+      "text": "Sign-ups spike 400% in the next hour. The server hiccups briefly — your engineer fixes it in four minutes. By midnight, Flowly has 3,000 active users.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Send a thank-you to your first 1,000 users", "next": "scene_012" },
+        { "text": "Post a metrics update to build social proof", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_008",
+      "text": "The countdown post gets pinned and shared 2,500 times. When launch hits midnight, the app store page crashes from traffic — a good problem.",
+      "tone": "playful",
+      "choices": [
+        { "text": "Acknowledge the crash with humour online", "next": "scene_012" },
+        { "text": "Push a mirror link immediately", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_009",
+      "text": "The exclusive runs at 8 a.m. on launch day. The headline: 'The focus app that actually works.' Forty-five thousand people click through by noon.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Launch a referral programme to capitalise on traffic", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_010",
+      "text": "Your clear, confident messaging cuts through the noise. Users start posting comparisons — and Flowly wins every thread. Your waitlist doubles overnight.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Keep the momentum going with a case study", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_011",
+      "text": "The price cut announcement feels rushed and your community notices. A few influencers question your confidence. You quickly reframe it as a launch celebration offer.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Double down with a value-focused follow-up", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_012",
+      "text": "The thank-you message is handwritten-style and personal. Users screenshot it and post it everywhere. Flowly is called 'the app that actually cares about its users.'",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_013",
+      "text": "Launch week closes with 12,000 sign-ups, a 4.8-star rating, and three inbound partnership enquiries. The origin story post is still circulating. Day one is done.",
+      "tone": "hopeful",
+      "choices": []
+    }
+  ]
+}

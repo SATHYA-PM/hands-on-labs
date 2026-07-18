@@ -1,0 +1,43 @@
+Story Schema Patterns — ScenePilot Style Guide
+================================================
+
+VALID BRANCHING STRUCTURE PATTERNS
+------------------------------------
+
+A well-formed branching narrative must satisfy the following structural rules:
+
+1. SCENE GRAPH SHAPE
+   - The scene graph must be a Directed Acyclic Graph (DAG).
+   - There must be exactly one entry point (root scene, i.e., scene_001).
+   - All scenes referenced by 'next' pointers must exist in the scenes array.
+   - Every non-terminal scene must have 2 or 3 choices.
+   - Terminal scenes (endings) have an empty choices array [].
+
+2. CHOICE VALIDITY
+   - Each choice must have a non-empty 'text' field (the label shown to the user).
+   - Each choice must have a 'next' field: either a valid scene id or null (ending).
+   - Choices within a single scene must lead to distinct scene ids.
+   - No two choices in the same scene should have identical labels.
+
+3. SCENE COVERAGE
+   - Every scene must be reachable from scene_001.
+   - Orphaned scenes (unreachable from root) are schema violations.
+   - Every scene id must be unique across the entire story.
+
+4. STORY LENGTH
+   - A minimum of 6 scenes is required for any published story.
+   - A minimum of 2 terminal scenes (endings) is recommended.
+   - Stories longer than 50 scenes must use hub-and-spoke or clustered structure.
+
+5. FIELD REQUIREMENTS PER SCENE
+   - id:      string, format "scene_NNN" (zero-padded 3-digit integer)
+   - text:    string, minimum 20 characters
+   - tone:    one of [tense, hopeful, dark, neutral, playful]
+   - choices: array (may be empty for terminal scenes)
+
+6. ANTI-PATTERNS TO AVOID
+   - Circular loops: scene A → scene B → scene A
+   - Dead-end non-terminals: a scene with choices all pointing to null when it is not intended as an ending
+   - Tone drift: more than 3 consecutive scenes changing tone category without a transition scene
+   - Choice overload: more than 3 choices in a single scene
+   - Cliff-hanger endings: terminal scenes that resolve nothing and provide no closure

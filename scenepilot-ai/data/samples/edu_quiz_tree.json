@@ -1,0 +1,125 @@
+{
+  "title": "The Water Cycle Adventure",
+  "genre": "educational",
+  "_demo_antipatterns": ["schema_violation_missing_tone_scene_005"],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "text": "You are a tiny water droplet named Pip, resting in a calm lake on a sunny morning. The sun's warmth is growing stronger. What do you do?",
+      "tone": "playful",
+      "choices": [
+        { "text": "Rise into the air as water vapour", "next": "scene_002" },
+        { "text": "Sink deeper into the cool lake", "next": "scene_003" }
+      ]
+    },
+    {
+      "id": "scene_002",
+      "text": "You evaporate! Tiny and invisible, you float upward into the sky. This is called evaporation — it happens when liquid water turns into water vapour using energy from the sun. What do you do next?",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Keep rising higher into cooler air", "next": "scene_004" },
+        { "text": "Float sideways toward the mountains", "next": "scene_005" }
+      ]
+    },
+    {
+      "id": "scene_003",
+      "text": "The lake floor is cool and still. Plants nearby absorb some of the water through their roots — a process called absorption. Eventually, water that plants absorb is released through their leaves as vapour in a process called transpiration. You follow the journey upward.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Evaporate through a leaf into the air", "next": "scene_002" },
+        { "text": "Stay underground and become groundwater", "next": "scene_006" }
+      ]
+    },
+    {
+      "id": "scene_004",
+      "text": "The air up here is cold! You and millions of other water vapour droplets bump together and condense around tiny dust particles, forming a cloud. Condensation is when water vapour cools and turns back into liquid. What does your cloud look like?",
+      "tone": "playful",
+      "choices": [
+        { "text": "A fluffy white cumulus cloud on a sunny day", "next": "scene_007" },
+        { "text": "A dark, heavy storm cloud full of rain", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_005",
+      "text": "The mountains force the air higher. You cool rapidly and condense into a cloud above the peaks. From here, you can see the whole valley below. Snow glitters on the summit.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Fall as rain on the mountain slope", "next": "scene_008" },
+        { "text": "Fall as snow on the summit", "next": "scene_009" }
+      ]
+    },
+    {
+      "id": "scene_006",
+      "text": "Underground, you travel slowly through rock and soil. This is called groundwater flow — it can take years! You eventually bubble up at a spring near a village and join a small stream.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Flow along the stream to the ocean", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_007",
+      "text": "Your fluffy cloud drifts over fields and forests for days. Farmers look up at you hopefully. Quiz time: what process formed you from water vapour?",
+      "tone": "playful",
+      "choices": [
+        { "text": "Evaporation", "next": "scene_011" },
+        { "text": "Condensation", "next": "scene_012" },
+        { "text": "Precipitation", "next": "scene_013" }
+      ]
+    },
+    {
+      "id": "scene_008",
+      "text": "Raindrops — including you — fall to the ground. This is precipitation. Water can also precipitate as snow, sleet, or hail depending on the temperature. You land on a hillside and begin to run downhill.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Run off into a stream (surface runoff)", "next": "scene_010" },
+        { "text": "Soak into the soil (infiltration)", "next": "scene_006" }
+      ]
+    },
+    {
+      "id": "scene_009",
+      "text": "You are a snowflake! You settle on the mountain summit and become part of a glacier. Locked in ice, you might stay here for hundreds of years — until the climate warms and you melt, flowing down as glacial meltwater.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Melt and flow down to the river", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_010",
+      "text": "The river carries you past towns and farmland, getting wider and wider, until you reach the ocean. You are home again. The water cycle never ends — and neither does Pip's adventure!",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Rest in the ocean (you have completed the cycle!)", "next": "scene_014" }
+      ]
+    },
+    {
+      "id": "scene_011",
+      "text": "Not quite! Evaporation is when liquid water turns into vapour — that already happened to Pip at the lake. The cloud you see formed through condensation: the vapour cooled and turned back into tiny liquid droplets. Remember: condensation makes clouds!",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Continue the journey — fall as rain", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_012",
+      "text": "Correct! Condensation is when water vapour cools and turns back into tiny liquid droplets that cluster together to form clouds. Well done, Pip!",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Continue the journey — fall as rain", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_013",
+      "text": "Not yet — precipitation is the step when the cloud releases water as rain or snow. The cloud itself formed through condensation, when water vapour cooled into droplets. You are close — keep going!",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Continue the journey — fall as rain", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_014",
+      "text": "Pip settles into the warm ocean, one droplet among trillions. Somewhere above, the sun is already warming the surface — and a new journey is about to begin. You have completed the water cycle!",
+      "tone": "hopeful",
+      "choices": []
+    }
+  ]
+}

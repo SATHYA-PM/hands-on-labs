@@ -1,0 +1,103 @@
+{
+  "title": "Escape from Helix Station",
+  "genre": "sci-fi",
+  "_demo_antipatterns": ["infinite_retry_branch_scene_005_to_scene_003"],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "text": "Red emergency lighting. Helix Station shudders. You are alone in Lab Seven — your crewmates' last known position is three sections away, and the airlock timer reads 18:00.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Head for the crew quarters immediately", "next": "scene_002" },
+        { "text": "Access the station mainframe first", "next": "scene_003" }
+      ]
+    },
+    {
+      "id": "scene_002",
+      "text": "The corridor is sealed at junction B-4. A pressure door, rated for deep vacuum, stands between you and your crew. The manual override requires a maintenance code.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Look for the maintenance code in the wall panel", "next": "scene_004" },
+        { "text": "Head back to the mainframe for the code", "next": "scene_003" }
+      ]
+    },
+    {
+      "id": "scene_003",
+      "text": "The mainframe is still online. Station logs show a hull fracture in section C expanding at 2mm per minute. The maintenance code for B-4 is in the system — but so is something else: an anomalous signal on a loop.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Take the code and go", "next": "scene_004" },
+        { "text": "Investigate the anomalous signal first", "next": "scene_005" }
+      ]
+    },
+    {
+      "id": "scene_004",
+      "text": "The door grinds open. Your crew — two engineers, one medic — are suited up and waiting. 'We thought you were dead,' says Yara. 'Airlock in twelve minutes. Move.'",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Head directly to the airlock", "next": "scene_006" },
+        { "text": "Reroute via the cargo hold to grab emergency pods", "next": "scene_007" }
+      ]
+    },
+    {
+      "id": "scene_005",
+      "text": "The signal resolves into a voice: distorted, but human. 'Maintenance sub-level. Trapped. Please.' The sub-level is a four-minute detour — time you do not have to spare.",
+      "tone": "dark",
+      "choices": [
+        { "text": "Go to the mainframe and check if it is a recording loop", "next": "scene_003" },
+        { "text": "Accept the risk — head to the sub-level", "next": "scene_008" }
+      ]
+    },
+    {
+      "id": "scene_006",
+      "text": "The airlock cycles. All four of you seal into the escape pod. The station groans behind you as the hull fracture reaches critical. The pod fires.",
+      "tone": "hopeful",
+      "choices": [
+        { "text": "Set course for the nearest relay beacon", "next": "scene_009" },
+        { "text": "Broadcast a distress signal and wait", "next": "scene_010" }
+      ]
+    },
+    {
+      "id": "scene_007",
+      "text": "The cargo hold has three single-person escape pods — enough for everyone. But the route adds six minutes you do not have. You reach the pods with two minutes left on the airlock.",
+      "tone": "tense",
+      "choices": [
+        { "text": "Launch in separate pods — safest option", "next": "scene_011" },
+        { "text": "Abandon the pods — sprint to the main airlock", "next": "scene_006" }
+      ]
+    },
+    {
+      "id": "scene_008",
+      "text": "Sub-level access: a teenager, a stowaway, in a survival suit two sizes too big. 'My dad works at the relay beacon. He can help.' You have eight minutes left.",
+      "tone": "neutral",
+      "choices": [
+        { "text": "Take her to your crew at B-4", "next": "scene_004" },
+        { "text": "Guide her to the cargo pods and meet your crew at airlock", "next": "scene_007" }
+      ]
+    },
+    {
+      "id": "scene_009",
+      "text": "The relay beacon picks up your pod within the hour. A rescue shuttle is two hours out. You watch Helix Station fold inward on the scanner — gone in seconds. Everyone made it.",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_010",
+      "text": "The distress signal bounces off a passing freighter. They divert. Rescue takes four hours in the cold dark of the pod. When the hatch opens, the crew of the freighter applauds.",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_011",
+      "text": "Three pods, four lives — one pod takes two. They scatter like seeds in the void. Seventy-two hours later, all three pods are recovered. The stowaway's father meets her at the dock.",
+      "tone": "hopeful",
+      "choices": []
+    },
+    {
+      "id": "scene_012",
+      "text": "The airlock seals behind you but the pod fails to launch. Hydraulic fault. You are sealed in, alive, as the station dies around you. The emergency beacon activates automatically.",
+      "tone": "dark",
+      "choices": []
+    }
+  ]
+}

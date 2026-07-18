@@ -1,0 +1,45 @@
+Narrative Tone Standards — ScenePilot Style Guide
+==================================================
+
+GENRE-SPECIFIC TONE RULES
+--------------------------
+
+Thriller
+  - Scenes must maintain tension through short, punchy sentences.
+  - Avoid passive voice in action sequences.
+  - Every scene should end with a decision under pressure.
+  - Dialogue should feel clipped and urgent; avoid long monologues.
+  - Darkness is appropriate; gratuitous violence is not.
+
+Fantasy
+  - World-building details should be woven into action, not dumped in exposition.
+  - Character voice must be consistent across all branches of the same character.
+  - Tone may shift from hopeful to dark but must do so gradually.
+  - Magic systems must follow consistent internal rules; do not introduce new powers late.
+
+Sci-Fi
+  - Technical jargon should be used sparingly and explained in context.
+  - Keep tone grounded even in extreme scenarios; avoid melodrama.
+  - Character decisions should reflect the constraints of the established world.
+  - Avoid deus-ex-machina resolutions in any branch.
+
+Educational
+  - Language must be age-appropriate and clearly defined for the target audience.
+  - Every branch must reinforce a learning objective stated in the premise.
+  - Neutral or hopeful tone only — avoid dark or tense framing.
+  - Wrong choices should still lead to learning moments, not dead ends.
+
+Marketing Interactive
+  - Tone must remain upbeat and brand-aligned throughout.
+  - No choice should lead to a negative brand outcome without a recovery path.
+  - Calls-to-action must be clear and placed at natural story checkpoints.
+  - Keep language concise; target reading level: Grade 8 or lower.
+
+GENERAL TONE GUIDELINES
+------------------------
+- Each scene's declared tone must match its prose style.
+- A scene labelled "tense" must use language that creates urgency.
+- A scene labelled "hopeful" must contain at least one optimistic statement.
+- A scene labelled "playful" should use light language and may include humour.
+- A scene labelled "dark" may explore conflict but must avoid gratuitous content.
+- A scene labelled "neutral" should serve as a narrative bridge or exposition beat.

@@ -1,0 +1,1 @@
+# ScenePilot AI — agents package

@@ -1,0 +1,47 @@
+Creative Writing Guidelines — ScenePilot Style Guide
+======================================================
+
+CHARACTER VOICE
+---------------
+- Each named character must have a consistent voice across all scenes they appear in.
+- Avoid having a character use vocabulary or register inconsistent with their established profile.
+- Protagonists should have agency; they must be the subject of at least 60% of action verbs in scenes they appear in.
+- Antagonists should be motivated; their choices must follow an internal logic even if it is sinister.
+
+PACING
+------
+- Action scenes: short paragraphs, 1–3 sentences. Momentum is paramount.
+- Exposition scenes: up to 5 sentences but must advance plot or deepen character.
+- Dialogue scenes: alternate between character voices; avoid three consecutive lines from the same character.
+- Each scene should perform exactly one of: reveal information, raise stakes, or change the power dynamic.
+
+DIALOGUE RULES
+--------------
+- Dialogue should feel natural when read aloud.
+- Avoid adverb-heavy dialogue tags: prefer "said" over "exclaimed loudly".
+- No character should use a word of more than 3 syllables in a tense or action scene unless it is a proper noun.
+- Subtext is preferred over on-the-nose dialogue; characters rarely say exactly what they mean.
+
+SCENE OPENINGS
+--------------
+- Do not open a scene with the word "It" or "There".
+- The first sentence of a scene should anchor the reader in place, time, or action.
+- Avoid starting two consecutive scenes with the same grammatical structure.
+
+SCENE ENDINGS (BEFORE CHOICES)
+-------------------------------
+- The final sentence before the choices should create a micro-cliffhanger or decision moment.
+- Avoid ending scenes with characters asleep, unconscious, or in stasis unless it is an ending scene.
+- The stakes of each choice should be implied by the scene's closing sentence.
+
+INCLUSIVE LANGUAGE
+------------------
+- Default to gender-neutral pronouns unless the premise specifies otherwise.
+- Avoid culturally specific idioms that may not translate across international audiences.
+- Do not use disability or illness as a shorthand for villainy or weakness.
+
+SHOW DON'T TELL
+---------------
+- Replace "She was afraid" with a physical or behavioural description of fear.
+- Replace "The city was dangerous" with a specific detail that implies danger.
+- Emotional states should be inferred from action and dialogue, not stated directly.
