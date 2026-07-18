@@ -71,7 +71,6 @@ export default function CostDashboard({ spans, tokenSpend, tokenCeiling = 10_000
   // Count both cycle-repair and style-repair spans.
   const cycleRepairPasses = spans.filter((s) => s.agent === "StoryGeneratorAgent[cycle-repair]").length;
   const styleRepairPasses = spans.filter((s) => s.agent === "StoryGeneratorAgent[style-repair]").length;
-  const repairPasses = cycleRepairPasses + styleRepairPasses;
 
   // Budget halt: any span with the budget-halt label signals an aborted run.
   const budgetHalted = spans.some((s) => s.agent === "StoryGeneratorAgent[budget-halt]");
