@@ -342,3 +342,4 @@ CLI compile: `tweego -o story.html story.tw`
 | Charts | Recharts |
 | Metrics | Prometheus + Grafana |
 | Infra | Docker Compose (4 services) |
+| AI Engineering Assistant | IBM Bob (architecture, diff-patch repair, budget gates, observability) |
