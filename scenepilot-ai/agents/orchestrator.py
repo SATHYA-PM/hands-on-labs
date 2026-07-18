@@ -72,10 +72,18 @@ def _route_after_sandbox(state: ScenePilotState) -> Literal["compliance", "retry
 def _increment_retry(state: ScenePilotState) -> ScenePilotState:
     """Bump retry counter and set up state for diff-based repair on next pass.
 
-    We intentionally preserve ``last_story`` and ``broken_nodes`` so the
-    generator node can issue a targeted patch prompt instead of a full
-    regeneration.  Only ``story`` / ``story_json`` are cleared because they
-    will be rebuilt from the patch + merge.
+    Preserved across retries:
+      - last_story  : the story from the failed pass — repair patches this
+      - broken_nodes: cycle back-edges (if any) from the sandbox
+      - style_check : style violations from the style vault — the generator
+                      reads these to decide whether to issue a style-repair
+                      prompt.  Clearing it (as before) caused repair_mode to
+                      never activate for style-only failures.
+
+    Cleared (will be repopulated by the next generate → style → sandbox pass):
+      - story / story_json : will be replaced by the patch result
+      - validation          : will be repopulated by style_vault + sandbox
+      - approved            : always False until sandbox re-approves
     """
     return {
         **state,
@@ -84,9 +92,9 @@ def _increment_retry(state: ScenePilotState) -> ScenePilotState:
         "story_json": None,
         "approved": False,
         "validation": None,
-        "style_check": None,
+        # DO NOT clear style_check — the generator reads violations from it
+        # to activate style_repair mode on the next pass.
         # Carry forward repair state — do NOT clear last_story / broken_nodes.
-        # repair_mode will be set by the generator node on the next pass.
         "repair_mode": False,
     }
 

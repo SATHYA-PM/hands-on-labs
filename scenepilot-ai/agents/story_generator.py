@@ -153,60 +153,86 @@ def _build_cycle_repair_prompt(
 # --- Style repair ---
 
 STYLE_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in STYLE REPAIR MODE.
-You will receive a subset of an existing branching narrative and a list of
-style violations reported by the style checker.
+You will receive ONLY the scenes that failed the style checker, the exact
+violation details for each one, and the story's genre and tone target.
 
-Your ONLY job is to rewrite the "text" and/or "tone" of the listed scenes so
-they conform to the style guidelines. Output ONLY a JSON patch object — no
-markdown fences, no commentary.
+Your ONLY job is to rewrite the "text" and/or "tone" of those specific scenes
+to fix the violations. Output ONLY a JSON patch object — no markdown, no commentary.
 
 Patch schema:
 {
   "<scene_id>": {
-    "text": "<rewritten scene text — 1-2 sentences>",
+    "text": "<rewritten scene text — 1-2 sentences, show-don't-tell, punchy>",
     "tone": "<tense|hopeful|dark|neutral|playful>"
   },
   ...
 }
 
 Rules:
-- Do NOT change scene "id", "choices", or any field not listed above.
-- Do NOT touch any scene that is not in the violations list.
-- Scene text must be 1-2 sentences maximum — no padding.
-- Tone must match the story genre: thriller → tense/dark/neutral, fantasy → hopeful/tense/neutral, sci-fi → tense/neutral/dark/hopeful.
-- Return ONLY the patch object — nothing else.
+- ONLY include scenes that appear in the VIOLATIONS section below.
+- Do NOT change scene "id" or "choices". Do NOT touch any other scene.
+- Text must be 1-2 sentences maximum. No padding, no exposition dumps.
+- Apply show-don't-tell: replace "She was afraid" with physical details.
+- Tone MUST match the target tone specified in the prompt.
+- Return ONLY the valid JSON patch object — nothing else.
 """
 
 
 def _build_style_repair_prompt(
     story: dict[str, Any],
-    style_violations: list[str],
+    structured: list[dict[str, Any]],
+    fallback_strings: list[str],
+    genre: str,
+    tone_label: str,
 ) -> str:
-    """Build the compact style-repair user message.
+    """Build a compact, precise style-repair user message.
 
-    Extracts only the violating scene IDs from the violation strings so we
-    never send the entire story payload to the LLM.
+    Uses structured violation objects (scene_id, type, score, rule) when
+    available so the LLM gets unambiguous targeting — no regex needed.
+    Falls back to parsing legacy string list if structured is empty.
     """
-    # Violation strings are formatted: "Scene scene_NNN may violate ..."
-    # or "Scene scene_NNN has tone ..."  — parse the scene_id out.
-    import re
-    violating_ids: set[str] = set()
-    for v in style_violations:
-        m = re.search(r"(scene_\d+)", v)
-        if m:
-            violating_ids.add(m.group(1))
+    # Extract violating IDs — directly from structured objects (no regex)
+    if structured:
+        violating_ids: set[str] = {v["scene_id"] for v in structured}
+    else:
+        import re
+        violating_ids = set()
+        for v in fallback_strings:
+            m = re.search(r"(scene_\d+)", v)
+            if m:
+                violating_ids.add(m.group(1))
 
+    # Send ONLY the violating scene objects — never the full story
     relevant_scenes = [
         s for s in story.get("scenes", [])
         if s.get("id") in violating_ids
     ]
 
+    # Build a precise violation report per scene
+    if structured:
+        violation_lines = []
+        for v in structured:
+            if v["type"] == "tone":
+                violation_lines.append(
+                    f"  {v['scene_id']}: TONE ERROR — current='{v['current_tone']}', "
+                    f"must be one of {v['allowed_tones']}"
+                )
+            else:
+                violation_lines.append(
+                    f"  {v['scene_id']}: STYLE MISMATCH — similarity={v['score']:.3f} "
+                    f"(threshold 0.35). Nearest rule: \"{v['rule'][:80]}\""
+                )
+        violation_report = "\n".join(violation_lines)
+    else:
+        violation_report = "\n".join(f"  - {v}" for v in fallback_strings)
+
     return (
-        "EXISTING STORY (violating scenes only):\n"
+        f"GENRE: {genre}   TARGET TONE: {tone_label}\n\n"
+        "SCENES TO REPAIR (full objects for context):\n"
         + json.dumps({"scenes": relevant_scenes}, indent=2)
-        + "\n\nSTYLE VIOLATIONS REPORTED BY CHECKER:\n"
-        + "\n".join(f"  - {v}" for v in style_violations)
-        + "\n\nReturn the style patch JSON now."
+        + "\n\nVIOLATIONS (rewrite ONLY these scene IDs):\n"
+        + violation_report
+        + "\n\nReturn the patch JSON now — one entry per violating scene_id."
     )
 
 
@@ -314,9 +340,13 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     retry_count = state.get("retry_count", 0)
     broken_nodes: list[tuple[str, str]] = state.get("broken_nodes") or []
     last_story: dict[str, Any] | None = state.get("last_story")
-    style_violations: list[str] = (
-        state.get("validation", {}) or {}
-    ).get("style_violations", [])
+
+    # Read from style_check (preserved across retries — NOT cleared by
+    # _increment_retry).  Use structured objects when available; fall back
+    # to the legacy string list so old cached state still works.
+    _sc = state.get("style_check") or {}
+    style_violations: list[str] = _sc.get("violations", [])
+    style_violations_structured: list[dict[str, Any]] = _sc.get("structured", [])
 
     # Repair mode: any retry where we have a saved story to patch against.
     # Two sub-modes:
@@ -326,7 +356,11 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     # (e.g. schema error on first pass before any story was saved).
     repair_mode = retry_count >= 1 and last_story is not None
     cycle_repair = repair_mode and bool(broken_nodes)
-    style_repair = repair_mode and not cycle_repair and bool(style_violations)
+    style_repair = (
+        repair_mode
+        and not cycle_repair
+        and bool(style_violations_structured or style_violations)
+    )
 
     # ── Defence-in-depth budget guard ────────────────────────────────────────
     # The router already checks budget before entering this node, but this
@@ -400,10 +434,32 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
 
     elif style_repair:
         # ── STYLE REPAIR: rewrite only the violating scenes' text/tone ───
-        # The style patch returns { scene_id: {text, tone} } — a different
-        # shape from the cycle patch { scene_id: choices[] }.  We apply it
-        # manually here before delegating to merge_patch for the rest.
-        user_prompt = _build_style_repair_prompt(last_story, style_violations)
+        #
+        # Use structured violation objects when available (new path) so we
+        # can pass exact scene IDs, scores, and rule excerpts to the LLM
+        # without fragile regex re-parsing.
+        #
+        # Dynamic max_tokens: each scene patch ≈ 80 tokens.  Scale up so
+        # a 22-violation batch doesn't get truncated at 1024 — a truncated
+        # response leaves most scenes unpatched and the whole story fails
+        # again on the next pass.
+        n_violations = len(style_violations_structured or style_violations)
+        repair_max_tokens = min(4096, max(1024, n_violations * 120))
+
+        tone_value: float = state.get("tone", 0.5)
+        tone_label = (
+            "dark" if tone_value <= 0.3
+            else "tense/neutral" if tone_value <= 0.6
+            else "hopeful/playful"
+        )
+
+        user_prompt = _build_style_repair_prompt(
+            last_story,
+            style_violations_structured or [],
+            style_violations,        # fallback strings when structured is empty
+            state.get("genre", "thriller"),
+            tone_label,
+        )
 
         def _apply_style_patch(base: dict[str, Any], spatch: dict[str, Any]) -> dict[str, Any]:
             import copy
@@ -420,13 +476,17 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
             return merged
 
         try:
-            raw, tokens = _call_groq(STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+            raw, tokens = _call_groq(
+                STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
+            )
             patch = _parse_patch(raw)
             story = _apply_style_patch(last_story, patch)
         except Exception as groq_err:
             error = f"Groq style-repair: {groq_err}"
             try:
-                raw, tokens = _call_gemini(STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+                raw, tokens = _call_gemini(
+                    STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
+                )
                 patch = _parse_patch(raw)
                 story = _apply_style_patch(last_story, patch)
                 error = None
