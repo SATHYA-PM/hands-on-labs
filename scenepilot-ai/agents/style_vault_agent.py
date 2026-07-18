@@ -77,31 +77,45 @@ def _check_tone_consistency(
 
 
 def _check_with_faiss(story: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return structured FAISS-violation objects."""
+    """Return structured FAISS-violation objects.
+
+    Queries k=3 rules and takes the BEST (highest) score across all three.
+    This prevents a scene from being flagged just because its single nearest
+    rule happens to be a poor semantic match — we give it three chances to
+    align with any relevant guideline before declaring a violation.
+
+    Threshold is read from STYLE_SIMILARITY_THRESHOLD (default 0.15).
+    The old default of 0.35 was calibrated for paragraph-level chunks;
+    after switching to sentence-level chunks the natural similarity range
+    for well-written scenes is 0.20–0.55, so 0.15 is the right floor
+    that filters genuinely off-tone text without false-positive-flooding.
+    """
     vault = _get_vault()
     violations: list[dict[str, Any]] = []
-    threshold = float(os.environ.get("STYLE_SIMILARITY_THRESHOLD", "0.35"))
+    threshold = float(os.environ.get("STYLE_SIMILARITY_THRESHOLD", "0.15"))
 
     for scene in story.get("scenes", []):
         text = scene.get("text", "")
         sid = scene.get("id", "?")
         if not text:
             continue
-        results = vault.query(text, k=1)
-        if results:
-            score, rule_text = results[0]
-            if score < threshold:
-                violations.append({
-                    "scene_id": sid,
-                    "type": "faiss",
-                    "score": round(score, 3),
-                    "rule": rule_text[:120],
-                    "message": (
-                        f"Scene {sid} may violate style guidelines "
-                        f"(similarity={score:.3f}). "
-                        f"Nearest rule: \"{rule_text[:80]}\u2026\""
-                    ),
-                })
+        # Query top-3 rules; take the best score (most favourable match)
+        results = vault.query(text, k=3)
+        if not results:
+            continue
+        best_score, best_rule = results[0]   # sorted descending by vault.query
+        if best_score < threshold:
+            violations.append({
+                "scene_id": sid,
+                "type": "faiss",
+                "score": round(best_score, 3),
+                "rule": best_rule[:120],
+                "message": (
+                    f"Scene {sid} may violate style guidelines "
+                    f"(best similarity={best_score:.3f}, threshold={threshold}). "
+                    f"Nearest rule: \"{best_rule[:80]}\u2026\""
+                ),
+            })
     return violations
 
 

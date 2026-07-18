@@ -125,10 +125,12 @@ def _check_structure(story: dict[str, Any]) -> list[str]:
                         f"points to non-existent scene '{nxt}'."
                     )
 
-    # Orphaned scenes — reachable only from scene_001 root via BFS
+    # Orphaned scenes — BFS from scene_001 (always the canonical root).
+    # Do NOT use scenes[0] — after a repair-patch merge the first element
+    # in the array may not be scene_001 if scenes were reordered.
     if scenes:
-        root = scenes[0].get("id")
         scene_map = {s.get("id"): s for s in scenes if s.get("id")}
+        root = "scene_001" if "scene_001" in scene_map else scenes[0].get("id")
         visited: set[str] = set()
         queue = [root]
         while queue:

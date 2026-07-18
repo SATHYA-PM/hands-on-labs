@@ -80,16 +80,33 @@ Rules:
 - Ending scenes have an empty choices array [].
 - scene ids are scene_001 … scene_NNN (zero-padded to 3 digits).
 - CRITICAL: The story graph MUST be a strict DAG (Directed Acyclic Graph). A choice's "next" value must ALWAYS point to a scene with a HIGHER number than the current scene. Never point backwards.
-- Tone must match the tone score: <=0.3 → dark, 0.3-0.7 → tense/neutral, >0.7 → hopeful/playful.
-- COMPACTNESS: Each scene "text" must be 1–2 sentences maximum. Choice "text" labels must be 3–6 words. No verbose narration or padding.
+- TONE: Use ONLY these tone values per genre:
+    thriller   → dark | tense | neutral
+    fantasy    → hopeful | tense | neutral | dark
+    sci-fi     → tense | neutral | dark | hopeful
+    educational → neutral | hopeful | playful
+    marketing  → hopeful | playful | neutral
+  The tone score maps to: <=0.3 → dark, 0.31-0.6 → tense/neutral, >0.6 → hopeful/playful.
+  Every scene's declared tone MUST match — never use a tone not listed for the genre.
+- COMPACTNESS: Each scene "text" must be 1–2 sentences maximum. Show physical action and sensory detail — never state emotions directly ("She was afraid" is wrong; "Her hands shook" is right). Choice labels: 3–6 words.
+- SCENE OPENINGS: Never start a scene with "It" or "There". Anchor the reader in action or place immediately.
+- SCENE ENDINGS: The last sentence before choices must create a decision moment or micro-cliffhanger.
 """
 
 
 def _build_user_prompt(premise: str, genre: str, tone: float) -> str:
+    # Derive a concrete tone label so the LLM has zero ambiguity
+    if tone <= 0.3:
+        tone_label = "dark"
+    elif tone <= 0.6:
+        tone_label = "tense/neutral"
+    else:
+        tone_label = "hopeful/playful"
+
     return (
         f"Premise: {premise}\n"
         f"Genre: {genre}\n"
-        f"Tone score: {tone:.2f}\n\n"
+        f"Tone score: {tone:.2f} ({tone_label})\n\n"
         "Generate the full branching narrative JSON now."
     )
 
@@ -308,12 +325,20 @@ def _parse_patch(raw: str) -> dict[str, Any]:
 
 
 def _break_cycles(story: dict[str, Any]) -> dict[str, Any]:
-    """Remove back-edges that create cycles using position ordering."""
+    """Remove back-edges that create cycles using position ordering.
+
+    Safe removal: if stripping back-edges would leave a non-terminal scene
+    with 0 choices, redirect those choices to the nearest forward scene
+    instead of deleting them — prevents schema errors downstream.
+    """
+    import copy
+    story = copy.deepcopy(story)
     scenes = story.get("scenes")
     if not scenes or not isinstance(scenes, list):
         return story
 
     order = {s.get("id"): i for i, s in enumerate(scenes) if s.get("id")}
+    scene_ids = list(order.keys())
 
     for scene in scenes:
         choices = scene.get("choices")
@@ -321,10 +346,29 @@ def _break_cycles(story: dict[str, Any]) -> dict[str, Any]:
             continue
         sid = scene.get("id")
         src = order.get(sid, -1)
-        scene["choices"] = [
+
+        forward = [
             c for c in choices
             if c.get("next") is None or order.get(c.get("next"), src + 1) > src
         ]
+        backward = [
+            c for c in choices
+            if c not in forward and c.get("next") is not None
+        ]
+
+        if forward:
+            scene["choices"] = forward
+        elif backward:
+            # All choices were back-edges — redirect each to the nearest
+            # forward scene rather than producing an empty choices array.
+            nearest_forward = next(
+                (sid2 for sid2 in scene_ids if order.get(sid2, -1) > src),
+                None,
+            )
+            if nearest_forward:
+                scene["choices"] = [{"text": "Continue", "next": nearest_forward}]
+            # else: last scene in list — leave empty (acts as terminal)
+        # If choices was already [] (terminal scene) leave it untouched
 
     return story
 

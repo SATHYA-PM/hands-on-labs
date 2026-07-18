@@ -41,9 +41,22 @@ class StyleVault:
         texts: list[str] = []
         for path in sorted(Path(rules_dir).glob("*.txt")):
             content = path.read_text(encoding="utf-8")
-            # Split into paragraphs / sentences for granular matching
-            chunks = [c.strip() for c in content.split("\n\n") if c.strip()]
-            texts.extend(chunks)
+            # Split into individual sentences so a short scene (15 words)
+            # can match a short rule sentence rather than a 200-word block.
+            # Previously splitting on "\n\n" produced huge paragraph chunks
+            # whose embeddings are semantically far from any single scene
+            # sentence — causing almost every scene to fail the threshold.
+            for para in content.split("\n\n"):
+                para = para.strip()
+                if not para:
+                    continue
+                # Split paragraph into sentences on ". " or ".\n"
+                import re
+                sentences = re.split(r'(?<=[.!?])\s+', para)
+                for s in sentences:
+                    s = s.strip(" -•")
+                    if len(s) > 20:   # ignore very short fragments / headers
+                        texts.append(s)
 
         if not texts:
             return
@@ -57,7 +70,11 @@ class StyleVault:
         self._index.add(embeddings.astype("float32"))
 
     def query(self, text: str, k: int = 3) -> list[tuple[float, str]]:
-        """Return [(score, rule_text), …] for the k nearest style rules."""
+        """Return [(score, rule_text), …] for the k nearest style rules.
+
+        Returns the TOP-k results sorted by descending score (best match first).
+        Callers should use results[0] as the best-match score.
+        """
         if not self._ready or self._index is None or not self._texts:
             return []
 
@@ -65,13 +82,15 @@ class StyleVault:
 
         vec = self._model.encode([text], convert_to_numpy=True)
         vec = vec / np.linalg.norm(vec, axis=1, keepdims=True)
-        scores, indices = self._index.search(vec.astype("float32"), k)
+        actual_k = min(k, len(self._texts))
+        scores, indices = self._index.search(vec.astype("float32"), actual_k)
 
         results: list[tuple[float, str]] = []
         for score, idx in zip(scores[0], indices[0]):
             if idx == -1:
                 continue
             results.append((float(score), self._texts[idx]))
+        # Already sorted descending by FAISS IndexFlatIP
         return results
 
     def add_rule(self, rule_text: str) -> None:
