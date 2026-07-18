@@ -43,6 +43,17 @@ BUDGET_HALTS = Counter(
     "Times the token budget ceiling was hit",
 )
 
+GUARDIAN_BLOCKS = Counter(
+    "scenepilot_guardian_blocks_total",
+    "Stories blocked by IBM Granite Guardian content safety check",
+)
+
+PROVIDER_QUOTA_HITS = Counter(
+    "scenepilot_provider_quota_hits_total",
+    "Times a provider returned 429/quota-exceeded — triggers fallback chain",
+    ["provider"],   # label: groq-primary | groq-fallback | gemini
+)
+
 # ── OpenTelemetry tracer (no-op if OTEL_EXPORTER_OTLP_ENDPOINT not set) ───────
 
 def get_tracer(name: str = "scenepilot"):

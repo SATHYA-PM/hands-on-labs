@@ -32,25 +32,15 @@ from typing import Any
 
 from agents.state import ScenePilotState
 from core.utils import merge_patch
+from core.llm_client import llm_call, ProviderQuotaExhausted
 
 # ── Budget reserve constants (must mirror orchestrator.py) ───────────────────
-# Kept as module-level constants so both the orchestrator router and this
-# node use identical thresholds — single source of truth is the pair of
-# constants; both files import from the same values conceptually.
 _REPAIR_RESERVE: int = 1_200
 _FULL_GEN_RESERVE: int = 9_500
 
-# ── LLM clients (lazy import so missing keys don't crash the whole app) ──────
-
-def _groq_client():
-    from groq import Groq  # type: ignore
-    return Groq(api_key=os.environ["GROQ_API_KEY"])
-
-
-def _gemini_client():
-    import google.generativeai as genai  # type: ignore
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    return genai.GenerativeModel("gemini-2.5-flash")
+# Maximum scenes to include in a repair prompt — keeps token usage bounded
+# even when a large story has many violations.
+_MAX_REPAIR_SCENES: int = 12
 
 
 # ── Full-generation prompt ────────────────────────────────────────────────────
@@ -253,34 +243,9 @@ def _build_style_repair_prompt(
     )
 
 
-# ── Core LLM calls ────────────────────────────────────────────────────────────
-
-def _call_groq(system: str, user: str, max_tokens: int = 8192) -> tuple[str, int]:
-    client = _groq_client()
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.7,
-        max_tokens=max_tokens,
-    )
-    content = response.choices[0].message.content or ""
-    tokens = response.usage.total_tokens if response.usage else 0
-    return content, tokens
-
-
-def _call_gemini(system: str, user: str, max_tokens: int = 8192) -> tuple[str, int]:
-    client = _gemini_client()
-    prompt = system + "\n\n" + user
-    response = client.generate_content(
-        prompt,
-        generation_config={"temperature": 0.7, "max_output_tokens": max_tokens},
-    )
-    content = response.text or ""
-    tokens = getattr(getattr(response, "usage_metadata", None), "total_token_count", 0) or 0
-    return content, tokens
+# _call_groq / _call_gemini removed — all LLM calls now go through
+# core.llm_client.llm_call() which implements the three-provider fallback
+# chain: groq-primary → groq-fallback → gemini.
 
 
 # ── JSON parsing helpers ──────────────────────────────────────────────────────
@@ -451,44 +416,35 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
 
     # ── Main generation / repair path ─────────────────────────────────────────
 
+    provider_used: str = "unknown"
+
     if cycle_repair:
-        # ── CYCLE REPAIR: patch only the back-edge routing properties ────
+        # ── CYCLE REPAIR ─────────────────────────────────────────────────
         validation = state.get("validation") or {}
         validation_issues: list[str] = validation.get("issues") or []
-
         user_prompt = _build_cycle_repair_prompt(last_story, broken_nodes, validation_issues)
-
         try:
-            raw, tokens = _call_groq(CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
+            raw, tokens, provider_used = llm_call(
+                CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024
+            )
             patch = _parse_patch(raw)
             story = merge_patch(last_story, patch)
-            story = _break_cycles(story)   # safety net: strip any lingering back-edges
-        except Exception as groq_err:
-            error = f"Groq cycle-repair: {groq_err}"
-            try:
-                raw, tokens = _call_gemini(CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024)
-                patch = _parse_patch(raw)
-                story = merge_patch(last_story, patch)
-                story = _break_cycles(story)
-                error = None
-            except Exception as gemini_err:
-                error = f"Both LLMs failed in cycle-repair mode. Groq: {groq_err} | Gemini: {gemini_err}"
-
+            story = _break_cycles(story)
+        except ProviderQuotaExhausted as qe:
+            error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
+        except Exception as exc:
+            error = f"cycle-repair failed: {exc}"
         agent_label = "StoryGeneratorAgent[cycle-repair]"
 
     elif style_repair:
-        # ── STYLE REPAIR: rewrite only the violating scenes' text/tone ───
-        #
-        # Use structured violation objects when available (new path) so we
-        # can pass exact scene IDs, scores, and rule excerpts to the LLM
-        # without fragile regex re-parsing.
-        #
-        # Dynamic max_tokens: each scene patch ≈ 80 tokens.  Scale up so
-        # a 22-violation batch doesn't get truncated at 1024 — a truncated
-        # response leaves most scenes unpatched and the whole story fails
-        # again on the next pass.
-        n_violations = len(style_violations_structured or style_violations)
-        repair_max_tokens = min(4096, max(1024, n_violations * 120))
+        # ── STYLE REPAIR ─────────────────────────────────────────────────
+        # Cap scenes sent to LLM at _MAX_REPAIR_SCENES (12) to prevent the
+        # 16k-token prompt spike that exhausted both providers in your run.
+        # If > 12 violations exist the worst-score batch is fixed first;
+        # any residual violations are caught on the next retry pass.
+        capped_structured = (style_violations_structured or [])[:_MAX_REPAIR_SCENES]
+        capped_strings    = style_violations[:_MAX_REPAIR_SCENES]
+        repair_max_tokens = min(4096, max(512, len(capped_structured or capped_strings) * 80 + 200))
 
         tone_value: float = state.get("tone", 0.5)
         tone_label = (
@@ -496,13 +452,9 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
             else "tense/neutral" if tone_value <= 0.6
             else "hopeful/playful"
         )
-
         user_prompt = _build_style_repair_prompt(
-            last_story,
-            style_violations_structured or [],
-            style_violations,        # fallback strings when structured is empty
-            state.get("genre", "thriller"),
-            tone_label,
+            last_story, capped_structured, capped_strings,
+            state.get("genre", "thriller"), tone_label,
         )
 
         def _apply_style_patch(base: dict[str, Any], spatch: dict[str, Any]) -> dict[str, Any]:
@@ -520,60 +472,29 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
             return merged
 
         try:
-            raw, tokens = _call_groq(
+            raw, tokens, provider_used = llm_call(
                 STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
             )
             patch = _parse_patch(raw)
             story = _apply_style_patch(last_story, patch)
-        except Exception as groq_err:
-            error = f"Groq style-repair: {groq_err}"
-            try:
-                raw, tokens = _call_gemini(
-                    STYLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
-                )
-                patch = _parse_patch(raw)
-                story = _apply_style_patch(last_story, patch)
-                error = None
-            except Exception as gemini_err:
-                error = f"Both LLMs failed in style-repair mode. Groq: {groq_err} | Gemini: {gemini_err}"
-
+        except ProviderQuotaExhausted as qe:
+            error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
+        except Exception as exc:
+            error = f"style-repair failed: {exc}"
         agent_label = "StoryGeneratorAgent[style-repair]"
+
     else:
-        # ── FULL GENERATION MODE ─────────────────────────────────────────
+        # ── FULL GENERATION ───────────────────────────────────────────────
         try:
-            raw, tokens = _call_groq(
+            raw, tokens, provider_used = llm_call(
                 SYSTEM_PROMPT,
                 _build_user_prompt(state["premise"], state["genre"], state["tone"]),
             )
             story = _parse_story(raw)
-        except Exception as groq_err:
-            error = f"Groq: {groq_err}"
-            try:
-                raw, tokens = _call_gemini(
-                    SYSTEM_PROMPT,
-                    _build_user_prompt(state["premise"], state["genre"], state["tone"]),
-                )
-                story = _parse_story(raw)
-                error = None
-            except Exception as gemini_err:
-                groq_msg = str(groq_err)
-                gemini_msg = str(gemini_err)
-                if "rate_limit_exceeded" in groq_msg or "429" in groq_msg:
-                    if (
-                        "rate_limit_exceeded" in gemini_msg
-                        or "429" in gemini_msg
-                        or "quota" in gemini_msg.lower()
-                    ):
-                        error = (
-                            "API quota exhausted on both providers (Groq + Gemini). "
-                            "Groq daily token limit resets every 24 hours; "
-                            "Gemini free tier resets daily. Please try again later."
-                        )
-                    else:
-                        error = f"Both LLMs failed. Groq: {groq_err} | Gemini: {gemini_err}"
-                else:
-                    error = f"Both LLMs failed. Groq: {groq_err} | Gemini: {gemini_err}"
-
+        except ProviderQuotaExhausted as qe:
+            error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
+        except Exception as exc:
+            error = f"generation failed: {exc}"
         agent_label = "StoryGeneratorAgent"
 
     repair_label = (
@@ -583,6 +504,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     )
     span = {
         "agent": agent_label,
+        "provider": provider_used,
         "duration_ms": int((time.time() - span_start) * 1000),
         "tokens": tokens,
         "repair_mode": repair_mode,

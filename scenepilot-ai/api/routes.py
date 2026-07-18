@@ -149,8 +149,19 @@ def generate_story(req: GenerateRequest):
     error = state.get("error")
 
     if error:
+        # Provider quota exhausted — clean message, set budget_halt so the
+        # frontend shows the correct classifier instead of a generic error.
+        if "PROVIDER QUOTA EXHAUSTED" in error:
+            budget_halt = True
+            error = (
+                "PROVIDER QUOTA EXHAUSTED — All LLM providers are temporarily "
+                "rate-limited (Groq primary, Groq fallback, Gemini). "
+                "Groq daily quota resets every 24 h; Gemini free tier resets daily. "
+                "Please retry in a few minutes or upgrade your Groq plan at "
+                "https://console.groq.com/settings/billing"
+            )
         # Normalise raw interpreter noise — never expose tracebacks to the UI.
-        if "Unterminated string" in error or "JSONDecodeError" in error or "Expecting value" in error:
+        elif "Unterminated string" in error or "JSONDecodeError" in error or "Expecting value" in error:
             error = (
                 "Generation Truncated — The LLM response was cut off before the JSON "
                 "structure could be completed. Input payload has been structurally condensed "
