@@ -42,6 +42,8 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
         LOOP_DETECTIONS.inc(result["cycles_detected"])
 
     passed = result["passed"]
+    # 'violations' in style_check = BLOCKING tone mismatches only (not FAISS)
+    # FAISS advisory violations are in style_check['advisory'] — never block.
     style_violations: list[str] = state.get("style_check", {}).get("violations", [])
     approved = passed and len(style_violations) == 0
 

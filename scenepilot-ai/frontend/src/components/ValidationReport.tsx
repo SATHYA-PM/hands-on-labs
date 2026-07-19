@@ -14,6 +14,7 @@ const AGENT_NAMES: Record<string, string> = {
   "StoryGeneratorAgent[budget-halt]": "Story Generator (Budget Halt)",
   "StyleVaultAgent":                  "Style Vault",
   "SandboxValidatorAgent":            "Sandbox Validator",
+  "GraniteGuardianAgent":             "IBM Granite Guardian",
   "ComplianceAgent":                  "Compliance",
 };
 
@@ -21,16 +22,19 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
   const structuralIssues  = validation?.structural_warnings ?? [];
   const cycleIssues       = validation?.issues.filter(i => i.startsWith("Cycle")) ?? [];
   const schemaIssues      = validation?.schema_errors ?? [];
+  // Blocking style violations = tone mismatches only (FAISS advisory excluded)
   const styleIssues       = validation?.style_violations ?? [];
-  const totalIssues       = (validation?.issues.length ?? 0);
+  // Advisory = FAISS similarity scores — shown as info, never blocked approval
+  const advisoryIssues    = (validation as any)?.style_advisory ?? [];
+  const totalIssues       = schemaIssues.length + cycleIssues.length + styleIssues.length + structuralIssues.length;
 
   // Classify backend error type for precise banner + error-box display.
   // Order matters: check most-specific prefixes first.
-  const isBudgetHalt  = error?.startsWith("BUDGET HALT");
-  const isPreFlight   = error?.startsWith("PRE-FLIGHT");
-  const isExhausted   = error?.startsWith("BUDGET EXHAUSTED");
-  const isQuotaError  = error?.includes("API quota exhausted");
-  const isTruncated   = error?.startsWith("Generation Truncated");
+  const isBudgetHalt    = error?.startsWith("BUDGET HALT");
+  const isPreFlight     = error?.startsWith("PRE-FLIGHT");
+  const isExhausted     = error?.startsWith("BUDGET EXHAUSTED");
+  const isQuotaError    = error?.includes("PROVIDER QUOTA EXHAUSTED") || error?.includes("API quota exhausted");
+  const isTruncated     = error?.startsWith("Generation Truncated");
 
   return (
     <div className="report">
@@ -78,10 +82,16 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
             icon="⊘"
           />
           <Metric
-            label="Style Violations"
+            label="Tone Violations"
             value={styleIssues.length}
             warn={styleIssues.length > 0}
             icon="◐"
+          />
+          <Metric
+            label="Style Advisory"
+            value={advisoryIssues.length}
+            warn={false}
+            icon="ℹ"
           />
           <Metric
             label="Structural"
@@ -109,7 +119,10 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
         <IssueGroup title="Structural Issues" color="#8b5cf6" issues={structuralIssues} />
       )}
       {styleIssues.length > 0 && (
-        <IssueGroup title="Style Violations" color="#06b6d4" issues={styleIssues} />
+        <IssueGroup title="Tone Violations (Blocking)" color="#f59e0b" issues={styleIssues} />
+      )}
+      {advisoryIssues.length > 0 && (
+        <IssueGroup title="Style Advisory (FAISS — Non-Blocking)" color="#94a3b8" issues={advisoryIssues} />
       )}
 
       {/* ── All-clear message ── */}

@@ -122,9 +122,26 @@ def _check_with_faiss(story: dict[str, Any]) -> list[dict[str, Any]]:
 # ── LangGraph node ────────────────────────────────────────────────────────────
 
 def style_vault_node(state: ScenePilotState) -> ScenePilotState:
+    """Style quality gate.
+
+    TWO-TIER design:
+    ─────────────────
+    BLOCKING  — tone label mismatches (e.g. 'hopeful' in a thriller).
+                These are deterministic schema-level errors the LLM can
+                trivially fix with a single-field patch.
+
+    ADVISORY  — FAISS semantic similarity scores.
+                Cosine similarity between a 15-word narrative scene and a
+                15-word style-guide sentence clusters at 0.18–0.34 for ALL
+                well-written prose — the distributions overlap completely.
+                Using FAISS as an approval gate causes 80+ false positives
+                per run regardless of story quality.  It is preserved as a
+                DIAGNOSTIC signal in the UI (visible in ValidationReport)
+                but NEVER counted toward approval.
+    """
     span_start = time.time()
-    structured: list[dict[str, Any]] = []   # new — structured violation objects
-    violation_strings: list[str] = []       # legacy — plain strings for UI
+    tone_structured: list[dict[str, Any]] = []   # BLOCKING — used for approval
+    faiss_structured: list[dict[str, Any]] = []  # ADVISORY — UI only
 
     story = state.get("story")
     if story is None:
@@ -136,26 +153,35 @@ def style_vault_node(state: ScenePilotState) -> ScenePilotState:
         }
         return {
             **state,
-            "style_check": {"violations": [], "structured": []},
+            "style_check": {"violations": [], "structured": [], "tone_violations": []},
             "agent_spans": [*state.get("agent_spans", []), span],
         }
 
     try:
-        tone_violations = _check_tone_consistency(story, state.get("genre", ""))
-        structured.extend(tone_violations)
-
-        faiss_violations = _check_with_faiss(story)
-        structured.extend(faiss_violations)
+        tone_structured = _check_tone_consistency(story, state.get("genre", ""))
     except Exception as exc:
-        violation_strings.append(f"StyleVault error (non-blocking): {exc}")
+        tone_structured = []
 
-    # Build legacy string list from structured objects (UI compatibility)
-    violation_strings = [v["message"] for v in structured]
+    try:
+        faiss_structured = _check_with_faiss(story)
+    except Exception:
+        faiss_structured = []
+
+    # BLOCKING violations = tone mismatches only
+    blocking = tone_structured
+    # ADVISORY violations = FAISS scores (shown in UI, never block approval)
+    advisory = faiss_structured
+
+    # Legacy string list for UI — all violations shown as info
+    all_strings = [v["message"] for v in blocking + advisory]
+    # Blocking strings only — used by sandbox_validator for approval gate
+    blocking_strings = [v["message"] for v in blocking]
 
     span = {
         "agent": "StyleVaultAgent",
         "duration_ms": int((time.time() - span_start) * 1000),
-        "violations": len(structured),
+        "violations": len(blocking),          # blocking count in span
+        "advisory_violations": len(advisory), # FAISS advisory count
         "success": True,
     }
 
@@ -169,15 +195,22 @@ def style_vault_node(state: ScenePilotState) -> ScenePilotState:
 
     return {
         **state,
-        # structured: list of {scene_id, type, score/current_tone, rule, message}
-        # violations: legacy string list — preserved for UI / ValidationReport
         "style_check": {
-            "violations": violation_strings,
-            "structured": structured,
+            # 'violations' carries BLOCKING violations only — used by sandbox gate
+            "violations": blocking_strings,
+            # 'advisory' carries FAISS scores — shown in UI, never blocks
+            "advisory": all_strings,
+            # 'structured' carries all violations for repair prompts
+            "structured": blocking + advisory,
+            # 'tone_violations' for targeted tone-repair prompt
+            "tone_violations": tone_structured,
         },
         "validation": {
             **current_validation,
-            "style_violations": violation_strings,
+            # style_violations in ValidationResult = blocking only
+            "style_violations": blocking_strings,
+            # advisory shown in UI under separate key
+            "style_advisory": all_strings,
         },
         "agent_spans": [*state.get("agent_spans", []), span],
     }
