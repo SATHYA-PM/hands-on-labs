@@ -273,9 +273,30 @@ def _parse_json(raw: str) -> dict[str, Any]:
 
 
 def _parse_story(raw: str) -> dict[str, Any]:
-    """Parse a full story JSON response and enforce DAG invariant."""
-    story = _parse_json(raw)
-    return _break_cycles(story)
+    """Parse a full story JSON response and enforce DAG invariant.
+
+    Handles three malformed shapes the LLM occasionally returns:
+      1. Correct:  {"title": ..., "scenes": [...]}
+      2. Wrapped:  [{"title": ..., "scenes": [...]}]   → unwrap list
+      3. Nested:   {"story": {"title": ..., "scenes": [...]}}  → unwrap key
+    """
+    obj = _parse_json(raw)
+
+    # Shape 2: LLM wrapped the object in an array
+    if isinstance(obj, list):
+        obj = obj[0] if obj else {}
+
+    # Shape 3: LLM nested the story under a "story" or "data" key
+    if isinstance(obj, dict) and "scenes" not in obj:
+        for key in ("story", "data", "result", "output"):
+            if key in obj and isinstance(obj[key], dict):
+                obj = obj[key]
+                break
+
+    if not isinstance(obj, dict):
+        raise ValueError(f"LLM returned unexpected JSON shape: {type(obj).__name__}")
+
+    return _break_cycles(obj)
 
 
 def _parse_patch(raw: str) -> dict[str, Any]:
