@@ -92,7 +92,9 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
         "passed": passed,
         "cycles_detected": result["cycles_detected"],
         "schema_errors": result["schema_errors"],
-        "issues": result["schema_errors"] + current_validation.get("style_violations", []),
+        # Build issues from CURRENT pass results only — never carry stale
+        # errors from a previous retry into the next validation result.
+        "issues": result["schema_errors"] + result.get("structural_warnings", []),
     }
 
     return {
