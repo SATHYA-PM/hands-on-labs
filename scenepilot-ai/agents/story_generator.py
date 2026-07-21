@@ -328,7 +328,10 @@ def _break_cycles(story: dict[str, Any]) -> dict[str, Any]:
 
     for scene in scenes:
         choices = scene.get("choices")
+        # Normalise null / missing / wrong-type choices to empty list.
+        # schema validator flags 'choices must be an array' on these.
         if not isinstance(choices, list):
+            scene["choices"] = []
             continue
         sid = scene.get("id")
         src = order.get(sid, -1)
