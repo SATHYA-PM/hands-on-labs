@@ -157,6 +157,77 @@ def _build_cycle_repair_prompt(
     )
 
 
+# --- Schema repair ---
+
+SCHEMA_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in SCHEMA REPAIR MODE.
+You will receive a subset of an existing branching narrative and a list of
+schema validation errors: missing required fields (id, text, tone, choices)
+or invalid field values (e.g. wrong tone value).
+
+Your ONLY job is to add the missing fields or fix the invalid values for the
+listed scenes. Output ONLY a JSON patch object — no markdown fences, no commentary.
+
+Patch schema:
+{
+  "<scene_id>": {
+    "text":    "<scene description, 1-2 sentences if missing>",
+    "tone":    "<tense|hopeful|dark|neutral|playful>",
+    "choices": [{"text": "<label>", "next": "<scene_id or null>"}]
+  },
+  ...
+}
+
+Rules:
+- Only include scenes that appear in the ERRORS section below.
+- Only include the fields that need to be added or fixed — do not replace correct fields.
+- tone MUST be one of: tense, hopeful, dark, neutral, playful.
+- text must be 1-2 sentences — show physical action, no emotion statements.
+- choices must be a valid array; use [] for terminal (ending) scenes.
+- Return ONLY the valid JSON patch object — nothing else.
+"""
+
+
+def _build_schema_repair_prompt(
+    story: dict[str, Any],
+    schema_errors: list[str],
+) -> str:
+    """Build a compact schema-repair user message.
+
+    Extracts scene indices/IDs mentioned in errors and sends only those scenes.
+    """
+    import re
+
+    all_scenes = story.get("scenes", [])
+
+    # Extract scene indices from error strings like "Scene[2] missing field 'tone'"
+    involved_indices: set[int] = set()
+    for err in schema_errors:
+        m = re.search(r"Scene\[(\d+)\]", err)
+        if m:
+            involved_indices.add(int(m.group(1)))
+        # Also match scene_id patterns
+        m2 = re.search(r"(scene_\d+)", err)
+        if m2:
+            sid = m2.group(1)
+            for i, s in enumerate(all_scenes):
+                if s.get("id") == sid:
+                    involved_indices.add(i)
+
+    relevant_scenes = (
+        [all_scenes[i] for i in sorted(involved_indices) if i < len(all_scenes)]
+        or all_scenes[:5]   # fallback: send first 5 if we can't parse indices
+    )
+
+    return (
+        "EXISTING STORY (affected scenes only):\n"
+        + json.dumps({"scenes": relevant_scenes}, indent=2)
+        + "\n\nSCHEMA ERRORS TO FIX:\n"
+        + "\n".join(f"  - {e}" for e in schema_errors)
+        + "\n\nValid tone values: tense, hopeful, dark, neutral, playful"
+        + "\n\nReturn the patch JSON now — one entry per affected scene_id."
+    )
+
+
 # --- Structural repair ---
 
 STRUCTURAL_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in STRUCTURAL REPAIR MODE.
@@ -472,23 +543,35 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     # Structural issues from the most recent sandbox pass (orphans, dangling refs).
     structural_issues: list[str] = state.get("structural_issues") or []
 
+    # Schema errors from the most recent sandbox pass (missing fields, bad tone values).
+    schema_errors: list[str] = (
+        (state.get("validation") or {}).get("schema_errors") or []
+    )
+
     # Repair mode: any retry where we have a saved story to patch against.
-    # Three sub-modes (evaluated in priority order):
+    # Four sub-modes (evaluated in priority order):
     #   cycle_repair      — broken_nodes is non-empty  (graph back-edges present)
+    #   schema_repair     — schema_errors is non-empty (missing fields / bad values)
     #   structural_repair — structural_issues is non-empty (orphans / dangling refs)
     #   style_repair      — style violations exist but graph is structurally sound
-    # If none holds on a retry we still fall back to full regen
-    # (e.g. schema error on first pass before any story was saved).
+    # If none holds on a retry we still fall back to full regen.
     repair_mode = retry_count >= 1 and last_story is not None
     cycle_repair = repair_mode and bool(broken_nodes)
+    schema_repair = (
+        repair_mode
+        and not cycle_repair
+        and bool(schema_errors)
+    )
     structural_repair = (
         repair_mode
         and not cycle_repair
+        and not schema_repair
         and bool(structural_issues)
     )
     style_repair = (
         repair_mode
         and not cycle_repair
+        and not schema_repair
         and not structural_repair
         and bool(style_violations_structured or style_violations)
     )
@@ -559,6 +642,37 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
         except Exception as exc:
             error = f"cycle-repair failed: {exc}"
         agent_label = "StoryGeneratorAgent[cycle-repair]"
+
+    elif schema_repair:
+        # ── SCHEMA REPAIR ────────────────────────────────────────────────
+        _emit(_sid, "progress", {"stage": "schema-repair", "message": f"Fixing {len(schema_errors)} schema error(s)…", "retry": retry_count})
+        user_prompt = _build_schema_repair_prompt(last_story, schema_errors)
+        repair_max_tokens = min(2048, max(512, len(schema_errors) * 120 + 300))
+        try:
+            raw, tokens, provider_used = llm_call(
+                SCHEMA_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
+            )
+            patch = _parse_patch(raw)
+            # Patch maps scene_id → {text?, tone?, choices?} — use style-patch merger
+            def _apply_schema_patch(base: dict[str, Any], spatch: dict[str, Any]) -> dict[str, Any]:
+                import copy
+                merged = copy.deepcopy(base)
+                scene_index = {s.get("id"): s for s in merged.get("scenes", []) if s.get("id")}
+                for scene_id, fields in spatch.items():
+                    scene = scene_index.get(scene_id)
+                    if scene is None or not isinstance(fields, dict):
+                        continue
+                    for field in ("text", "tone", "choices"):
+                        if field in fields:
+                            scene[field] = fields[field]
+                return merged
+            story = _apply_schema_patch(last_story, patch)
+            story = _break_cycles(story)
+        except ProviderQuotaExhausted as qe:
+            error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
+        except Exception as exc:
+            error = f"schema-repair failed: {exc}"
+        agent_label = "StoryGeneratorAgent[schema-repair]"
 
     elif structural_repair:
         # ── STRUCTURAL REPAIR ────────────────────────────────────────────
@@ -646,8 +760,9 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
 
     repair_label = (
         "cycle-repair"      if cycle_repair
+        else "schema-repair"     if schema_repair
         else "structural-repair" if structural_repair
-        else "style-repair" if style_repair
+        else "style-repair"      if style_repair
         else "none"
     )
     span = {

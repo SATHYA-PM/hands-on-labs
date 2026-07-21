@@ -21,6 +21,7 @@ const AGENT_NAMES: Record<string, string> = {
   "StoryGeneratorAgent[repair]":               "Story Generator (Repair)",
   "StoryGeneratorAgent[budget-halt]":          "Story Generator (Budget Halt)",
   "StoryGeneratorAgent[cycle-repair]":         "Story Generator (Cycle Repair)",
+  "StoryGeneratorAgent[schema-repair]":        "Story Generator (Schema Repair)",
   "StoryGeneratorAgent[structural-repair]":    "Story Generator (Structural Repair)",
   "StoryGeneratorAgent[style-repair]":         "Story Generator (Style Repair)",
   "StyleVaultAgent":                           "Style Vault",

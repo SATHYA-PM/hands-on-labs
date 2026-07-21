@@ -42,11 +42,13 @@ services:
 
   # ── Grafana ────────────────────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0
     ports:
       - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=scenepilot
+      - GF_PLUGINS_ENABLE_ALPHA=false
+      - GF_PLUGIN_CATALOG_ENABLED=false
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
