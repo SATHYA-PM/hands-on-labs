@@ -7,23 +7,25 @@ Provider order
   2. Groq  llama-3.1-8b-instant      (secondary — separate quota, same key)
   3. Gemini gemini-2.5-flash          (tertiary — different provider entirely)
 
-On any 429 / quota error the chain moves to the next provider automatically,
-logs a Prometheus warning counter, and records which provider was used in the
-returned metadata so the span can surface it in the UI.
+On any 429 / quota error the chain first retries the same provider once
+(with exponential backoff) before moving to the next provider.  Groq rate
+limits are often transient (token-per-minute window resets in 1–5 s), so a
+single cheap retry avoids burning the fallback quota unnecessarily.
+
+Retry policy (per provider):
+  attempt 1 → immediate
+  attempt 2 → sleep RETRY_BASE_DELAY × 2^0  (default 2 s)
+  (no further retries — escalate to next provider)
 
 All callers (story_generator.py) go through a single function:
 
     raw, tokens, provider = llm_call(system, user, max_tokens)
-
-This replaces the previous scattered _call_groq / _call_gemini pattern and
-ensures every future provider addition is made in exactly one place.
 """
 from __future__ import annotations
 
 import logging
 import os
 import time
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,10 @@ GEMINI_MODEL         = "gemini-2.5-flash"
 
 # Strings that identify a quota / rate-limit error across both SDKs
 _QUOTA_MARKERS = ("rate_limit_exceeded", "429", "quota", "RESOURCE_EXHAUSTED")
+
+# Retry config — one retry per provider before escalating to the next
+_RETRY_BASE_DELAY: float = float(os.environ.get("LLM_RETRY_DELAY", "2.0"))  # seconds
+_MAX_RETRIES_PER_PROVIDER: int = 1   # 1 retry = 2 total attempts per provider
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -108,52 +114,66 @@ def llm_call(
 
     errors: list[str] = []
 
+    def _with_retry(label: str, call, fallback_msg: str):
+        """Attempt `call()` up to 1+_MAX_RETRIES_PER_PROVIDER times.
+
+        On a quota error, sleep _RETRY_BASE_DELAY seconds and try once more
+        before giving up and appending to `errors`.  Non-quota errors are
+        re-raised immediately (they won't be fixed by waiting).
+
+        Returns (content, tokens) on success, or None on quota exhaustion.
+        """
+        for attempt in range(1 + _MAX_RETRIES_PER_PROVIDER):
+            try:
+                return call()
+            except Exception as exc:
+                if not _is_quota_error(exc):
+                    raise  # non-quota — surface immediately
+                if attempt < _MAX_RETRIES_PER_PROVIDER:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        "%s quota hit (attempt %d/%d) — retrying in %.1fs. %s",
+                        label, attempt + 1, 1 + _MAX_RETRIES_PER_PROVIDER, delay, exc,
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.warning("%s quota exhausted after retry — %s. %s", label, fallback_msg, exc)
+                    if PROVIDER_QUOTA_HITS:
+                        PROVIDER_QUOTA_HITS.labels(provider=label).inc()
+                    errors.append(f"{label}(429): {exc}")
+        return None  # all attempts failed with quota errors
+
     # ── 1. Groq primary ───────────────────────────────────────────────────────
-    try:
-        content, tokens = _call_groq_model(
-            GROQ_PRIMARY_MODEL, system, user, max_tokens
-        )
-        return content, tokens, "groq-primary"
-    except Exception as exc:
-        if _is_quota_error(exc):
-            logger.warning("Groq primary quota hit — falling back to groq-fallback. %s", exc)
-            if PROVIDER_QUOTA_HITS:
-                PROVIDER_QUOTA_HITS.labels(provider="groq-primary").inc()
-            errors.append(f"groq-primary(429): {exc}")
-        else:
-            raise  # non-quota error — surface immediately
+    result = _with_retry(
+        "groq-primary",
+        lambda: _call_groq_model(GROQ_PRIMARY_MODEL, system, user, max_tokens),
+        "falling back to groq-fallback",
+    )
+    if result is not None:
+        return result[0], result[1], "groq-primary"
 
     # ── 2. Groq fallback (separate model = separate TPD quota) ───────────────
-    try:
-        content, tokens = _call_groq_model(
-            GROQ_FALLBACK_MODEL, system, user, max_tokens
-        )
-        return content, tokens, "groq-fallback"
-    except Exception as exc:
-        if _is_quota_error(exc):
-            logger.warning("Groq fallback quota hit — falling back to Gemini. %s", exc)
-            if PROVIDER_QUOTA_HITS:
-                PROVIDER_QUOTA_HITS.labels(provider="groq-fallback").inc()
-            errors.append(f"groq-fallback(429): {exc}")
-        else:
-            raise
+    result = _with_retry(
+        "groq-fallback",
+        lambda: _call_groq_model(GROQ_FALLBACK_MODEL, system, user, max_tokens),
+        "falling back to Gemini",
+    )
+    if result is not None:
+        return result[0], result[1], "groq-fallback"
 
     # ── 3. Gemini ─────────────────────────────────────────────────────────────
-    try:
-        content, tokens = _call_gemini_model(system, user, max_tokens)
-        return content, tokens, "gemini"
-    except Exception as exc:
-        if _is_quota_error(exc):
-            logger.warning("Gemini quota hit — all providers exhausted. %s", exc)
-            if PROVIDER_QUOTA_HITS:
-                PROVIDER_QUOTA_HITS.labels(provider="gemini").inc()
-            errors.append(f"gemini(429): {exc}")
-            raise ProviderQuotaExhausted(
-                "All LLM providers are rate-limited. "
-                + " | ".join(errors)
-            ) from exc
-        else:
-            raise
+    result = _with_retry(
+        "gemini",
+        lambda: _call_gemini_model(system, user, max_tokens),
+        "all providers exhausted",
+    )
+    if result is not None:
+        return result[0], result[1], "gemini"
+
+    raise ProviderQuotaExhausted(
+        "All LLM providers are rate-limited after retries. "
+        + " | ".join(errors)
+    )
 
 
 class ProviderQuotaExhausted(RuntimeError):

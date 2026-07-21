@@ -17,7 +17,13 @@ from core.telemetry import (
 
 
 def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
+    from core.progress import emit as _emit
     span_start = time.time()
+
+    _emit(state.get("story_id", ""), "progress", {
+        "stage": "validating",
+        "message": "Running sandbox validation…",
+    })
 
     story = state.get("story")
     if story is None:
@@ -63,6 +69,10 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
     invalid_edges: list[tuple[str, str]] = result.get("invalid_edges", [])
     broken_nodes = invalid_edges if invalid_edges else state.get("broken_nodes") or []
 
+    # Carry structural warnings forward so the generator can target them in
+    # structural_repair mode (orphaned scenes, dangling next references).
+    structural_warnings: list[str] = result.get("structural_warnings", [])
+
     # Always persist the current story when not approved so the repair pass
     # has a base to patch against.  Previously this only ran when cycles were
     # found; style-only failures left last_story=None, blocking repair mode.
@@ -94,7 +104,8 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
         "schema_errors": result["schema_errors"],
         # Build issues from CURRENT pass results only — never carry stale
         # errors from a previous retry into the next validation result.
-        "issues": result["schema_errors"] + result.get("structural_warnings", []),
+        "issues": result["schema_errors"] + structural_warnings,
+        "structural_warnings": structural_warnings,
     }
 
     return {
@@ -103,5 +114,6 @@ def sandbox_validator_node(state: ScenePilotState) -> ScenePilotState:
         "approved": approved,
         "broken_nodes": broken_nodes,
         "last_story": last_story,
+        "structural_issues": structural_warnings,
         "agent_spans": [*state.get("agent_spans", []), span],
     }

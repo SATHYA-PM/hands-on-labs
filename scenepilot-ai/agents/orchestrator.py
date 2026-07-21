@@ -179,6 +179,11 @@ def get_compiled_graph():
 
 def run_pipeline(premise: str, genre: str, tone: float) -> ScenePilotState:
     story_id = str(uuid.uuid4())
+    # Register a progress queue for SSE streaming before the graph runs.
+    # Nodes emit events into this queue; the /api/progress/{id} endpoint drains it.
+    from core.progress import register as _reg, close as _close
+    _reg(story_id)
+
     initial: ScenePilotState = {
         "story_id": story_id,
         "premise": premise,
@@ -195,6 +200,7 @@ def run_pipeline(premise: str, genre: str, tone: float) -> ScenePilotState:
         "broken_nodes": None,
         "last_story": None,
         "repair_mode": False,
+        "structural_issues": None,
         # Budget gate fields — false at pipeline start.
         "budget_halt": False,
         # Guardian — None until the node runs.
@@ -205,4 +211,8 @@ def run_pipeline(premise: str, genre: str, tone: float) -> ScenePilotState:
         "error": None,
     }
     graph = get_compiled_graph()
-    return graph.invoke(initial)
+    try:
+        result = graph.invoke(initial)
+    finally:
+        _close(story_id)
+    return result

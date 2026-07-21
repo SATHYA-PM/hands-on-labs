@@ -217,6 +217,32 @@ def list_stories():
     return {"story_ids": story_store.all_ids()}
 
 
+@router.get("/progress/{story_id}")
+def progress_stream(story_id: str):
+    """Server-Sent Events stream for pipeline progress.
+
+    Connect immediately after POST /generate returns the story_id.
+    The stream emits `progress` events until the pipeline finishes, then
+    sends a `done` event and closes.
+
+    Event shape:
+        event: progress
+        data: {"stage": "generating|style-check|validating|compliance|…",
+               "message": "<human string>", "retry": <int>}
+    """
+    from fastapi.responses import StreamingResponse
+    from core.progress import stream as _stream
+
+    return StreamingResponse(
+        _stream(story_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # disable nginx buffering
+        },
+    )
+
+
 @router.post("/blueprint")
 def generate_blueprint_endpoint(body: dict):
     """

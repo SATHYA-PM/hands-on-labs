@@ -8,9 +8,12 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
 export function useStory() {
-  const [status, setStatus]   = useState<PipelineStatus>("idle");
-  const [result, setResult]   = useState<GenerateResponse | null>(null);
-  const [error,  setError]    = useState<string | null>(null);
+  const [status,         setStatus]         = useState<PipelineStatus>("idle");
+  const [result,         setResult]         = useState<GenerateResponse | null>(null);
+  const [error,          setError]          = useState<string | null>(null);
+  // pendingStoryId is set when a live generate starts so useProgress can
+  // connect the SSE stream before the HTTP response arrives.
+  const [pendingStoryId, setPendingStoryId] = useState<string | null>(null);
 
   // ── Live generation through the full LangGraph pipeline ──────────────────
   const generate = useCallback(
@@ -18,6 +21,10 @@ export function useStory() {
       setStatus("generating");
       setError(null);
       setResult(null);
+      // Generate a client-side story_id optimistically so we can open the
+      // SSE stream before the server responds.  The server generates its own
+      // UUID — we switch pendingStoryId to the real one once the response lands.
+      setPendingStoryId("__pending__");
 
       try {
         const res = await fetch(`${API_BASE}/generate`, {
@@ -33,11 +40,15 @@ export function useStory() {
 
         setStatus("validating");
         const data: GenerateResponse = await res.json();
+        // Switch to the real story_id so useProgress drains the right queue
+        setPendingStoryId(data.story_id);
         setResult(data);
         setStatus(data.error ? "error" : "done");
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
         setStatus("error");
+      } finally {
+        setPendingStoryId(null);
       }
     },
     []
@@ -134,7 +145,8 @@ export function useStory() {
     setStatus("idle");
     setResult(null);
     setError(null);
+    setPendingStoryId(null);
   }, []);
 
-  return { status, result, error, generate, loadSample, reset };
+  return { status, result, error, generate, loadSample, reset, pendingStoryId };
 }

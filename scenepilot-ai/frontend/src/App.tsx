@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Scene, Genre } from "./types";
 import { useStory } from "./hooks/useStory";
+import { useProgress } from "./hooks/useProgress";
 import PremiseInput from "./components/PremiseInput";
 import StoryTree from "./components/StoryTree";
 import SceneInspector from "./components/SceneInspector";
@@ -43,7 +44,8 @@ const SAMPLE_PREFILL: Record<string, { premise: string; genre: Genre; tone: numb
 };
 
 export default function App() {
-  const { status, result, error, generate, loadSample, reset } = useStory();
+  const { status, result, error, generate, loadSample, reset, pendingStoryId } = useStory();
+  const progress = useProgress(pendingStoryId);
   const [selectedScene,  setSelectedScene]  = useState<Scene | null>(null);
   const [activeTab,      setActiveTab]      = useState<Tab>("tree");
   const [premiseLen,     setPremiseLen]     = useState(0);
@@ -144,7 +146,12 @@ export default function App() {
           {isLoading && (
             <div className="status-bar status-bar--loading">
               <span className="spinner" />
-              {status === "generating" ? "Generating branching narrative…" : "Running validation pipeline…"}
+              {progress
+                ? progress.message + (progress.retry ? ` (retry ${progress.retry})` : "")
+                : status === "generating" ? "Generating branching narrative…" : "Running validation pipeline…"}
+              {progress && (
+                <span className="progress-stage">{progress.stage}</span>
+              )}
             </div>
           )}
           {error && (
@@ -160,6 +167,13 @@ export default function App() {
                   {result.approved ? "Approved" : "Rejected"}
                 </span>
                 <span className="story-bar-meta">{scenes.length} scenes</span>
+                <button
+                  className="btn btn--ghost story-bar-download"
+                  title="Download story as JSON"
+                  onClick={() => handleExport("json")}
+                >
+                  ↓ JSON
+                </button>
               </div>
 
               {/* Tabs */}

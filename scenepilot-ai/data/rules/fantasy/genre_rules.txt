@@ -1,0 +1,27 @@
+Fantasy Genre Rules — ScenePilot Style Guide
+=============================================
+
+WORLD-BUILDING
+--------------
+- World-building details should be woven into action, not dumped in exposition.
+- Introduce one new world element per scene maximum; more overwhelms the reader.
+- Magic systems must follow consistent internal rules; do not introduce new powers late.
+- Physical laws of the world must remain consistent across all branches.
+
+TONE AND ARC
+------------
+- Tone may shift from hopeful to dark but must do so gradually — never a single-scene reversal.
+- Hope is the emotional anchor of fantasy; even the darkest branch must carry a thread of it.
+- Sacrifice scenes must feel earned — the reader must know what is being lost.
+
+CHARACTER VOICE
+---------------
+- Character voice must be consistent across all branches of the same character.
+- Each named character must have a consistent voice across all scenes they appear in.
+- Heroes face impossible choices, not easy ones — both options must cost something.
+
+SHOW DON'T TELL
+---------------
+- Describe magic through physical sensation — warmth, weight, light — not abstract capability.
+- Replace "She was afraid" with a physical response anchored in the world's sensory palette.
+- The world's beauty and danger should be felt, not catalogued.

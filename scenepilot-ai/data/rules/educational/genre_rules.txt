@@ -1,0 +1,28 @@
+Educational Genre Rules — ScenePilot Style Guide
+=================================================
+
+LEARNING OBJECTIVES
+-------------------
+- Every branch must reinforce a learning objective stated in the premise.
+- Wrong choices should still lead to learning moments, not dead ends — failure is part of learning.
+- Each scene should deliver exactly one concept; do not double-load scenes with two new ideas.
+- Correct choices should be rewarded with satisfying cause-and-effect clarity.
+
+LANGUAGE AND TONE
+-----------------
+- Language must be age-appropriate and clearly defined for the target audience.
+- Neutral or hopeful tone only — avoid dark or tense framing that may create anxiety.
+- A scene labelled "playful" should use light language and may include humour.
+- Define new vocabulary in context, never as a separate glossary entry mid-story.
+
+STRUCTURE
+---------
+- A scene labelled "hopeful" must contain at least one optimistic statement or moment of mastery.
+- Choice labels must be short, clear, and unambiguous — the learner must understand what they are choosing.
+- Every non-terminal scene must have exactly 2 choices to prevent cognitive overload.
+- Stories should build in difficulty — early scenes are simpler, later scenes are more complex.
+
+SHOW DON'T TELL
+---------------
+- Demonstrate the concept through the character's experience — show the water cycle through Pip's journey, not a definition.
+- Replace abstract statements with concrete actions the learner can visualise.

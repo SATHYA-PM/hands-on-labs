@@ -1,0 +1,27 @@
+Sci-Fi Genre Rules — ScenePilot Style Guide
+============================================
+
+WORLD AND TECHNOLOGY
+--------------------
+- Technical jargon should be used sparingly and explained in context.
+- Every technological detail introduced must be consistent across all scenes.
+- Avoid deus-ex-machina resolutions in any branch — solutions must use established world rules.
+- Science and technology constrain characters; they cannot simply be overridden by willpower.
+
+TONE
+----
+- Keep tone grounded even in extreme scenarios; avoid melodrama.
+- Isolation, scale, and consequence are the emotional registers of sci-fi — use them.
+- Replace "She was afraid" with a systems-level reaction: suit pressure alarm, tunnel vision, hands shaking over controls.
+
+CHARACTER AND DECISION
+-----------------------
+- Character decisions should reflect the constraints of the established world.
+- Decisions must have systemic consequences — the world changes when a character acts.
+- Antagonists should be motivated; their choices must follow an internal logic even if it is sinister.
+
+DIALOGUE
+--------
+- Dialogue should be efficient — characters in sci-fi settings speak in mission-critical terms.
+- Avoid exposition dumps disguised as dialogue; characters should not explain things to each other that both already know.
+- Subtext is preferred over on-the-nose dialogue; characters rarely say exactly what they mean.

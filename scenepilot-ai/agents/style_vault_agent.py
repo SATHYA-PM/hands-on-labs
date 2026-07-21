@@ -27,18 +27,21 @@ from typing import Any
 
 from agents.state import ScenePilotState
 
-# Lazy-loaded vault singleton (populated on first use)
-_vault = None
+# Per-genre vault cache — one vault instance per genre key so we load the
+# correct genre-specific rules without rebuilding the FAISS index every call.
+_vault_cache: dict[str, object] = {}
 
 
-def _get_vault():
-    global _vault
-    if _vault is None:
+def _get_vault(genre: str = ""):
+    global _vault_cache
+    key = genre.lower() if genre else "__common__"
+    if key not in _vault_cache:
         from core.style_vault import StyleVault
-        _vault = StyleVault()
+        v = StyleVault()
         rules_dir = os.path.join(os.path.dirname(__file__), "..", "data", "rules")
-        _vault.load_rules_dir(os.path.abspath(rules_dir))
-    return _vault
+        v.load_rules_dir(os.path.abspath(rules_dir), genre=genre or None)
+        _vault_cache[key] = v
+    return _vault_cache[key]
 
 
 # ── Tone mapping ──────────────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ def _check_tone_consistency(
     return violations
 
 
-def _check_with_faiss(story: dict[str, Any]) -> list[dict[str, Any]]:
+def _check_with_faiss(story: dict[str, Any], genre: str = "") -> list[dict[str, Any]]:
     """Return structured FAISS-violation objects.
 
     Queries k=3 rules and takes the BEST (highest) score across all three.
@@ -84,13 +87,11 @@ def _check_with_faiss(story: dict[str, Any]) -> list[dict[str, Any]]:
     rule happens to be a poor semantic match — we give it three chances to
     align with any relevant guideline before declaring a violation.
 
-    Threshold is read from STYLE_SIMILARITY_THRESHOLD (default 0.15).
-    The old default of 0.35 was calibrated for paragraph-level chunks;
-    after switching to sentence-level chunks the natural similarity range
-    for well-written scenes is 0.20–0.55, so 0.15 is the right floor
-    that filters genuinely off-tone text without false-positive-flooding.
+    Threshold is read from STYLE_SIMILARITY_THRESHOLD (default 0.20).
+    Genre-specific rules are loaded alongside common rules so thriller scenes
+    are checked against thriller-specific guidelines etc.
     """
-    vault = _get_vault()
+    vault = _get_vault(genre)
     violations: list[dict[str, Any]] = []
     threshold = float(os.environ.get("STYLE_SIMILARITY_THRESHOLD", "0.15"))
 
@@ -121,7 +122,7 @@ def _check_with_faiss(story: dict[str, Any]) -> list[dict[str, Any]]:
 
 # ── LangGraph node ────────────────────────────────────────────────────────────
 
-def style_vault_node(state: ScenePilotState) -> ScenePilotState:
+def style_vault_node(state: ScenePilotState) -> ScenePilotState:  # noqa: C901
     """Style quality gate.
 
     TWO-TIER design:
@@ -139,9 +140,15 @@ def style_vault_node(state: ScenePilotState) -> ScenePilotState:
                 DIAGNOSTIC signal in the UI (visible in ValidationReport)
                 but NEVER counted toward approval.
     """
+    from core.progress import emit as _emit
     span_start = time.time()
     tone_structured: list[dict[str, Any]] = []   # BLOCKING — used for approval
     faiss_structured: list[dict[str, Any]] = []  # ADVISORY — UI only
+
+    _emit(state.get("story_id", ""), "progress", {
+        "stage": "style-check",
+        "message": "Checking style guidelines…",
+    })
 
     story = state.get("story")
     if story is None:
@@ -163,7 +170,7 @@ def style_vault_node(state: ScenePilotState) -> ScenePilotState:
         tone_structured = []
 
     try:
-        faiss_structured = _check_with_faiss(story)
+        faiss_structured = _check_with_faiss(story, genre=state.get("genre", ""))
     except Exception:
         faiss_structured = []
 
@@ -209,8 +216,14 @@ def style_vault_node(state: ScenePilotState) -> ScenePilotState:
             **current_validation,
             # style_violations in ValidationResult = blocking only
             "style_violations": blocking_strings,
-            # advisory shown in UI under separate key
+            # advisory shown in UI under separate key (flat strings fallback)
             "style_advisory": all_strings,
+            # structured advisory — each entry has scene_id, score, rule
+            # consumed by FaissAdvisory component in ValidationReport
+            "style_advisory_structured": [
+                {"scene_id": v["scene_id"], "score": v["score"], "rule": v["rule"]}
+                for v in advisory
+            ],
         },
         "agent_spans": [*state.get("agent_spans", []), span],
     }

@@ -148,7 +148,8 @@ input, textarea, select { font: inherit; }
   50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(16,185,129,0); }
 }
 
-.story-bar-meta { margin-left: auto; font-size: 0.78rem; color: #9ca3af; }
+.story-bar-meta  { font-size: 0.78rem; color: #9ca3af; }
+.story-bar-download { margin-left: auto; font-size: 0.78rem; padding: 0.2rem 0.65rem; }
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────── */
 .tabs {
@@ -500,6 +501,15 @@ input[type="range"] { width: 100%; accent-color: #4f6ef7; margin-top: 0.25rem; }
   flex-shrink: 0;
 }
 .status-bar--loading { background: #eff6ff; color: #1d4ed8; border-bottom: 1px solid #bfdbfe; }
+.progress-stage {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #3b82d4;
+  opacity: 0.75;
+}
 .status-bar--error   { background: #fef2f2; color: #b91c1c; border-bottom: 1px solid #fecaca; }
 
 .spinner {

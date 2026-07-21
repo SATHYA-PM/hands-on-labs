@@ -14,7 +14,14 @@ from core.story_store import story_store
 
 
 def compliance_node(state: ScenePilotState) -> ScenePilotState:
+    from core.progress import emit as _emit
     span_start = time.time()
+
+    _emit(state.get("story_id", ""), "progress", {
+        "stage": "compliance",
+        "message": "Generating compliance fingerprint…",
+        "approved": state.get("approved", False),
+    })
 
     story = state.get("story")
     story_id = state.get("story_id", "unknown")

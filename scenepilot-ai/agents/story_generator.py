@@ -157,6 +157,93 @@ def _build_cycle_repair_prompt(
     )
 
 
+# --- Structural repair ---
+
+STRUCTURAL_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in STRUCTURAL REPAIR MODE.
+You will receive a subset of an existing branching narrative and a list of
+structural problems: orphaned scenes (unreachable from root) and dangling
+references (choices that point to non-existent scene IDs).
+
+Your ONLY job is to fix the routing so every scene is reachable and every
+"next" value points to a real scene ID. Output ONLY a JSON patch object —
+no markdown fences, no commentary.
+
+Patch schema:
+{
+  "<scene_id>": [
+    {"text": "<choice label>", "next": "<existing_scene_id or null>"},
+    ...
+  ],
+  ...
+}
+
+Rules:
+- Do NOT rewrite scene "text", "tone", or "id" fields.
+- Each entry in the patch replaces the ENTIRE choices array for that scene.
+- To fix a dangling reference: replace the bad "next" value with the ID of
+  the nearest existing scene that logically follows (higher scene number).
+- To fix an orphaned scene: find the scene most likely to link to it and
+  add a choice pointing to it. Include that parent scene in the patch.
+- A choice "next" may be null only for ending scenes (leaf nodes).
+- Return ONLY the valid JSON patch object — nothing else.
+"""
+
+
+def _build_structural_repair_prompt(
+    story: dict[str, Any],
+    structural_issues: list[str],
+) -> str:
+    """Build a compact structural-repair user message.
+
+    Extracts the scene IDs involved in each issue and sends only those
+    scenes to the LLM so the prompt stays small.
+    """
+    import re
+
+    # Collect all scene IDs mentioned in the issue strings
+    involved_ids: set[str] = set()
+    for issue in structural_issues:
+        for m in re.finditer(r"scene_\d+", issue):
+            involved_ids.add(m.group(0))
+
+    all_scene_ids = {s.get("id") for s in story.get("scenes", []) if s.get("id")}
+
+    # For orphaned scenes we also need to find a potential parent scene —
+    # include the scene immediately before each orphan (by numeric order).
+    orphan_ids: set[str] = set()
+    for issue in structural_issues:
+        if "unreachable" in issue:
+            for m in re.finditer(r"scene_\d+", issue):
+                orphan_ids.add(m.group(0))
+
+    for oid in orphan_ids:
+        try:
+            num = int(oid.split("_")[1])
+            candidate = f"scene_{(num - 1):03d}"
+            if candidate in all_scene_ids:
+                involved_ids.add(candidate)
+        except (IndexError, ValueError):
+            pass
+
+    relevant_scenes = [
+        s for s in story.get("scenes", [])
+        if s.get("id") in involved_ids
+    ]
+    # If we couldn't identify specific scenes, fall back to sending all scenes
+    if not relevant_scenes:
+        relevant_scenes = story.get("scenes", [])
+
+    return (
+        "EXISTING STORY (relevant scenes only):\n"
+        + json.dumps({"scenes": relevant_scenes}, indent=2)
+        + "\n\nALL VALID SCENE IDs IN THIS STORY:\n"
+        + json.dumps(sorted(all_scene_ids))
+        + "\n\nSTRUCTURAL ISSUES TO FIX:\n"
+        + "\n".join(f"  - {issue}" for issue in structural_issues)
+        + "\n\nReturn the patch JSON now — one entry per scene that needs its choices fixed."
+    )
+
+
 # --- Style repair ---
 
 STYLE_REPAIR_SYSTEM_PROMPT = """You are ScenePilot in STYLE REPAIR MODE.
@@ -365,6 +452,7 @@ def _break_cycles(story: dict[str, Any]) -> dict[str, Any]:
 # ── LangGraph node ────────────────────────────────────────────────────────────
 
 def story_generator_node(state: ScenePilotState) -> ScenePilotState:
+    from core.progress import emit as _emit
     span_start = time.time()
     error: str | None = None
     story: dict[str, Any] | None = None
@@ -381,17 +469,27 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     style_violations: list[str] = _sc.get("violations", [])
     style_violations_structured: list[dict[str, Any]] = _sc.get("structured", [])
 
+    # Structural issues from the most recent sandbox pass (orphans, dangling refs).
+    structural_issues: list[str] = state.get("structural_issues") or []
+
     # Repair mode: any retry where we have a saved story to patch against.
-    # Two sub-modes:
-    #   cycle_repair — broken_nodes is non-empty  (graph back-edges present)
-    #   style_repair — broken_nodes empty but style violations exist
-    # If neither condition holds on a retry we still fall back to full regen
+    # Three sub-modes (evaluated in priority order):
+    #   cycle_repair      — broken_nodes is non-empty  (graph back-edges present)
+    #   structural_repair — structural_issues is non-empty (orphans / dangling refs)
+    #   style_repair      — style violations exist but graph is structurally sound
+    # If none holds on a retry we still fall back to full regen
     # (e.g. schema error on first pass before any story was saved).
     repair_mode = retry_count >= 1 and last_story is not None
     cycle_repair = repair_mode and bool(broken_nodes)
+    structural_repair = (
+        repair_mode
+        and not cycle_repair
+        and bool(structural_issues)
+    )
     style_repair = (
         repair_mode
         and not cycle_repair
+        and not structural_repair
         and bool(style_violations_structured or style_violations)
     )
 
@@ -441,9 +539,11 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     # ── Main generation / repair path ─────────────────────────────────────────
 
     provider_used: str = "unknown"
+    _sid = state.get("story_id", "")
 
     if cycle_repair:
         # ── CYCLE REPAIR ─────────────────────────────────────────────────
+        _emit(_sid, "progress", {"stage": "cycle-repair", "message": "Repairing cycle back-edges…", "retry": retry_count})
         validation = state.get("validation") or {}
         validation_issues: list[str] = validation.get("issues") or []
         user_prompt = _build_cycle_repair_prompt(last_story, broken_nodes, validation_issues)
@@ -460,8 +560,30 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
             error = f"cycle-repair failed: {exc}"
         agent_label = "StoryGeneratorAgent[cycle-repair]"
 
+    elif structural_repair:
+        # ── STRUCTURAL REPAIR ────────────────────────────────────────────
+        _emit(_sid, "progress", {"stage": "structural-repair", "message": f"Fixing {len(structural_issues)} structural issue(s)…", "retry": retry_count})
+        # Fixes orphaned scenes and dangling next references without
+        # touching scene text or tone — minimal patch, low token cost.
+        user_prompt = _build_structural_repair_prompt(last_story, structural_issues)
+        repair_max_tokens = min(2048, max(512, len(structural_issues) * 150 + 300))
+        try:
+            raw, tokens, provider_used = llm_call(
+                STRUCTURAL_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
+            )
+            patch = _parse_patch(raw)
+            # Patch maps scene_id → choices[] — merge using cycle-repair merge_patch
+            story = merge_patch(last_story, patch)
+            story = _break_cycles(story)
+        except ProviderQuotaExhausted as qe:
+            error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
+        except Exception as exc:
+            error = f"structural-repair failed: {exc}"
+        agent_label = "StoryGeneratorAgent[structural-repair]"
+
     elif style_repair:
         # ── STYLE REPAIR ─────────────────────────────────────────────────
+        _emit(_sid, "progress", {"stage": "style-repair", "message": "Repairing style violations…", "retry": retry_count})
         # Cap scenes sent to LLM at _MAX_REPAIR_SCENES (12) to prevent the
         # 16k-token prompt spike that exhausted both providers in your run.
         # If > 12 violations exist the worst-score batch is fixed first;
@@ -509,6 +631,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
 
     else:
         # ── FULL GENERATION ───────────────────────────────────────────────
+        _emit(_sid, "progress", {"stage": "generating", "message": "Generating branching narrative…", "retry": retry_count})
         try:
             raw, tokens, provider_used = llm_call(
                 SYSTEM_PROMPT,
@@ -522,7 +645,8 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
         agent_label = "StoryGeneratorAgent"
 
     repair_label = (
-        "cycle-repair" if cycle_repair
+        "cycle-repair"      if cycle_repair
+        else "structural-repair" if structural_repair
         else "style-repair" if style_repair
         else "none"
     )

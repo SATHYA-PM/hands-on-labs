@@ -32,31 +32,46 @@ class StyleVault:
         except ImportError:
             self._ready = False
 
-    def load_rules_dir(self, rules_dir: str) -> None:
+    def load_rules_dir(self, rules_dir: str, genre: Optional[str] = None) -> None:
+        """Load common rules from `rules_dir/*.txt` plus genre-specific rules.
+
+        If `genre` is provided and a subdirectory `<rules_dir>/<genre>/` exists,
+        all `.txt` files in that subdirectory are also loaded.  Genre rules take
+        the same weight as common rules in the FAISS index — they simply add more
+        targeted sentences for the genre being checked.
+        """
         if not self._ready:
             return
+        import re
+
         import numpy as np
         import faiss  # type: ignore
 
-        texts: list[str] = []
-        for path in sorted(Path(rules_dir).glob("*.txt")):
+        def _extract_sentences(path: Path) -> list[str]:
             content = path.read_text(encoding="utf-8")
-            # Split into individual sentences so a short scene (15 words)
-            # can match a short rule sentence rather than a 200-word block.
-            # Previously splitting on "\n\n" produced huge paragraph chunks
-            # whose embeddings are semantically far from any single scene
-            # sentence — causing almost every scene to fail the threshold.
+            sentences: list[str] = []
             for para in content.split("\n\n"):
                 para = para.strip()
                 if not para:
                     continue
-                # Split paragraph into sentences on ". " or ".\n"
-                import re
-                sentences = re.split(r'(?<=[.!?])\s+', para)
-                for s in sentences:
+                for s in re.split(r'(?<=[.!?])\s+', para):
                     s = s.strip(" -•")
-                    if len(s) > 20:   # ignore very short fragments / headers
-                        texts.append(s)
+                    if len(s) > 20:
+                        sentences.append(s)
+            return sentences
+
+        texts: list[str] = []
+
+        # 1. Common rules — top-level *.txt files
+        for path in sorted(Path(rules_dir).glob("*.txt")):
+            texts.extend(_extract_sentences(path))
+
+        # 2. Genre-specific rules — <rules_dir>/<genre>/*.txt
+        if genre:
+            genre_dir = Path(rules_dir) / genre.lower()
+            if genre_dir.is_dir():
+                for path in sorted(genre_dir.glob("*.txt")):
+                    texts.extend(_extract_sentences(path))
 
         if not texts:
             return

@@ -54,6 +54,10 @@ class ScenePilotState(TypedDict):
     # repair_mode: True when retry_count >= 1 and broken_nodes is non-empty,
     # signalling the generator to emit a minimal patch instead of a full story.
     repair_mode: bool
+    # structural_issues: structural warning strings from the most recent sandbox
+    # pass (orphaned scenes, dangling next references); consumed by
+    # structural_repair mode in story_generator_node.
+    structural_issues: Optional[list[str]]
 
     # ── Audit / telemetry ──────────────────────────────────────────────────
     audit: Optional[AuditEntry]
@@ -64,3 +68,5 @@ class ScenePilotState(TypedDict):
     # Lets the API route produce a distinct user-facing message without
     # string-matching the error field.
     budget_halt: bool
+    # guardian_check: result dict from GraniteGuardianAgent
+    guardian_check: Optional[dict]

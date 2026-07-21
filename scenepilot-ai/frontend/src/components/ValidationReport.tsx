@@ -1,5 +1,13 @@
 import type { ValidationResult, AgentSpan } from "../types";
 
+// Structured FAISS advisory entry returned by style_vault_agent
+interface AdvisoryEntry {
+  scene_id: string;
+  score: number;
+  rule: string;
+  message: string;
+}
+
 interface Props {
   validation: ValidationResult | null;
   agentSpans: AgentSpan[];
@@ -9,13 +17,16 @@ interface Props {
 }
 
 const AGENT_NAMES: Record<string, string> = {
-  "StoryGeneratorAgent":              "Story Generator",
-  "StoryGeneratorAgent[repair]":      "Story Generator (Repair)",
-  "StoryGeneratorAgent[budget-halt]": "Story Generator (Budget Halt)",
-  "StyleVaultAgent":                  "Style Vault",
-  "SandboxValidatorAgent":            "Sandbox Validator",
-  "GraniteGuardianAgent":             "IBM Granite Guardian",
-  "ComplianceAgent":                  "Compliance",
+  "StoryGeneratorAgent":                       "Story Generator",
+  "StoryGeneratorAgent[repair]":               "Story Generator (Repair)",
+  "StoryGeneratorAgent[budget-halt]":          "Story Generator (Budget Halt)",
+  "StoryGeneratorAgent[cycle-repair]":         "Story Generator (Cycle Repair)",
+  "StoryGeneratorAgent[structural-repair]":    "Story Generator (Structural Repair)",
+  "StoryGeneratorAgent[style-repair]":         "Story Generator (Style Repair)",
+  "StyleVaultAgent":                           "Style Vault",
+  "SandboxValidatorAgent":                     "Sandbox Validator",
+  "GraniteGuardianAgent":                      "IBM Granite Guardian",
+  "ComplianceAgent":                           "Compliance",
 };
 
 export default function ValidationReport({ validation, agentSpans, tokenSpend, approved, error }: Props) {
@@ -24,9 +35,20 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
   const schemaIssues      = validation?.schema_errors ?? [];
   // Blocking style violations = tone mismatches only (FAISS advisory excluded)
   const styleIssues       = validation?.style_violations ?? [];
-  // Advisory = FAISS similarity scores — shown as info, never blocked approval
-  const advisoryIssues    = (validation as any)?.style_advisory ?? [];
+  // Advisory = FAISS similarity scores — shown as info, never blocks approval
+  const rawAdvisory       = (validation as any)?.style_advisory_structured ?? [];
+  // Fall back to flat strings if structured data isn't present
+  const flatAdvisory: string[] = (validation as any)?.style_advisory ?? [];
+  const hasStructured     = rawAdvisory.length > 0;
   const totalIssues       = schemaIssues.length + cycleIssues.length + styleIssues.length + structuralIssues.length;
+
+  // The real rejection reason is structural/schema/cycle — make it explicit
+  const rejectionReasons: string[] = [
+    ...(cycleIssues.length > 0       ? [`${cycleIssues.length} cycle(s) detected`] : []),
+    ...(schemaIssues.length > 0      ? [`${schemaIssues.length} schema error(s)`] : []),
+    ...(structuralIssues.length > 0  ? [`${structuralIssues.length} structural issue(s) (orphaned/dangling scenes)`] : []),
+    ...(styleIssues.length > 0       ? [`${styleIssues.length} tone mismatch(es)`] : []),
+  ];
 
   // Classify backend error type for precise banner + error-box display.
   // Order matters: check most-specific prefixes first.
@@ -48,7 +70,9 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
           : isExhausted   ? "✗ Budget Exhausted — Story exceeded token ceiling mid-generation"
           : isQuotaError  ? "✗ API Quota Exhausted — Both LLM providers are rate-limited"
           : isTruncated   ? "✗ Generation Truncated — LLM response cut off mid-JSON"
-          : `✗ Rejected — ${totalIssues} issue${totalIssues !== 1 ? "s" : ""} detected`}
+          : rejectionReasons.length > 0
+            ? `✗ Rejected — ${rejectionReasons.join(", ")}`
+            : `✗ Rejected — ${totalIssues} issue${totalIssues !== 1 ? "s" : ""} detected`}
       </div>
 
       {/* ── Backend error detail box ── */}
@@ -89,7 +113,7 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
           />
           <Metric
             label="Style Advisory"
-            value={advisoryIssues.length}
+            value={hasStructured ? rawAdvisory.length : flatAdvisory.length}
             warn={false}
             icon="ℹ"
           />
@@ -121,8 +145,11 @@ export default function ValidationReport({ validation, agentSpans, tokenSpend, a
       {styleIssues.length > 0 && (
         <IssueGroup title="Tone Violations (Blocking)" color="#f59e0b" issues={styleIssues} />
       )}
-      {advisoryIssues.length > 0 && (
-        <IssueGroup title="Style Advisory (FAISS — Non-Blocking)" color="#94a3b8" issues={advisoryIssues} />
+      {hasStructured && (
+        <FaissAdvisory entries={rawAdvisory} />
+      )}
+      {!hasStructured && flatAdvisory.length > 0 && (
+        <IssueGroup title="Style Advisory (FAISS — Non-Blocking)" color="#94a3b8" issues={flatAdvisory} />
       )}
 
       {/* ── All-clear message ── */}
@@ -194,6 +221,56 @@ function IssueGroup({ title, color, issues }: { title: string; color: string; is
           <li key={i} style={{ borderLeftColor: color }}>{issue}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function FaissAdvisory({ entries }: { entries: AdvisoryEntry[] }) {
+  const threshold = 0.35;
+  // Sort worst-first (lowest score first)
+  const sorted = [...entries].sort((a, b) => a.score - b.score);
+  return (
+    <div className="report-section">
+      <h4 style={{ color: "#94a3b8" }}>
+        Style Advisory — FAISS Similarity Scores
+        <span style={{ fontWeight: 400, fontSize: "0.8em", marginLeft: 8, color: "#94a3b8" }}>
+          (non-blocking — shown for diagnostics only)
+        </span>
+      </h4>
+      <div style={{ fontSize: "0.78em", color: "#57606a", marginBottom: 8 }}>
+        Threshold: {threshold} &nbsp;·&nbsp; Green ≥ 0.25 &nbsp;·&nbsp; Amber 0.15–0.25 &nbsp;·&nbsp; Red &lt; 0.15
+      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82em" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #e5e7eb", textAlign: "left", color: "#57606a" }}>
+            <th style={{ padding: "4px 8px", width: 100 }}>Scene</th>
+            <th style={{ padding: "4px 8px", width: 60 }}>Score</th>
+            <th style={{ padding: "4px 8px" }}>Score Bar</th>
+            <th style={{ padding: "4px 8px" }}>Nearest Rule</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((e, i) => {
+            const pct = Math.round(e.score * 100);
+            const color = e.score >= 0.25 ? "#16a34a" : e.score >= 0.15 ? "#d97706" : "#dc2626";
+            return (
+              <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td style={{ padding: "4px 8px", fontFamily: "monospace", color: "#1f2328" }}>{e.scene_id}</td>
+                <td style={{ padding: "4px 8px", color, fontWeight: 700 }}>{e.score.toFixed(3)}</td>
+                <td style={{ padding: "4px 8px", width: 160 }}>
+                  <div style={{ background: "#e5e7eb", borderRadius: 4, height: 8, width: 140 }}>
+                    <div style={{ background: color, borderRadius: 4, height: 8, width: `${Math.min(pct / threshold * 100, 100)}%`, maxWidth: "100%" }} />
+                  </div>
+                </td>
+                <td style={{ padding: "4px 8px", color: "#57606a", overflow: "hidden", whiteSpace: "nowrap", maxWidth: 280, textOverflow: "ellipsis" }}
+                    title={e.rule}>
+                  {e.rule}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

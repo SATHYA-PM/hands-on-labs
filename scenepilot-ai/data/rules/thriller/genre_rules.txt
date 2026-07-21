@@ -1,0 +1,33 @@
+Thriller Genre Rules — ScenePilot Style Guide
+==============================================
+
+TENSION AND PACING
+------------------
+- Thriller - Scenes must maintain tension through short, punchy sentences.
+- Every scene must end with an unresolved threat, question, or consequence that compels the next choice.
+- Never let a scene settle — comfort in a thriller signals incoming danger.
+- Action beats: one sentence per action. Never group two violent actions into the same sentence.
+
+DIALOGUE
+--------
+- Dialogue should feel clipped and urgent; avoid long monologues.
+- Characters in danger speak in fragments. Complete sentences signal false safety.
+- Subtext is essential; characters lie, deflect, and withhold — read between the lines.
+
+TONE
+----
+- Darkness is appropriate; gratuitous gore is not — imply rather than describe.
+- Every choice must feel dangerous. Even the "safe" option should carry a hidden cost.
+- Avoid passive voice in action sequences; every verb should carry urgency.
+
+ANTAGONIST
+----------
+- The antagonist must be present or implied in at least every third scene.
+- Antagonist motivation must be coherent — fear, greed, ideology — never random evil.
+- Antagonists should be motivated; their choices must follow an internal logic even if it is sinister.
+
+SHOW DON'T TELL
+---------------
+- Replace "She was afraid" with a physical or behavioural description: hands shook, breath stopped.
+- Replace "The city was dangerous" with a specific sensory detail that implies danger.
+- Dread should be shown through environment: flickering lights, silence where sound should be.

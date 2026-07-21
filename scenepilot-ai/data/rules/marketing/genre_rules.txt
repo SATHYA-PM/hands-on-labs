@@ -1,0 +1,29 @@
+Marketing Interactive Genre Rules — ScenePilot Style Guide
+============================================================
+
+BRAND AND TONE
+--------------
+- Tone must remain upbeat and brand-aligned throughout — no scene may feel cynical or defeatist.
+- A scene labelled "hopeful" must contain at least one optimistic statement or forward momentum.
+- A scene labelled "playful" should use light language and may include humour appropriate to the brand.
+- Avoid urgency-through-fear; prefer urgency-through-opportunity.
+
+CHOICES AND CALLS TO ACTION
+----------------------------
+- No choice should lead to a negative brand outcome without a clear recovery path in the next scene.
+- Calls-to-action must be clear and placed at natural story checkpoints.
+- Choice labels must map to real user decisions — "Sign up now" is better than "Continue".
+- Every terminal scene must include an implied or explicit next step for the reader.
+
+LANGUAGE
+--------
+- Keep language concise; target reading level Grade 8 or lower.
+- Avoid jargon unless the audience is explicitly technical — define it in context if used.
+- Subtext is acceptable but clarity wins; characters in marketing stories should say what they mean.
+- Each scene should perform exactly one job: educate, persuade, or convert.
+
+SHOW DON'T TELL
+---------------
+- Replace "The product was excellent" with a specific user benefit or outcome.
+- Replace "She was afraid to launch" with a concrete action: fingers hovered over the submit button.
+- Demonstrate value through story consequences, not adjective-heavy descriptions.

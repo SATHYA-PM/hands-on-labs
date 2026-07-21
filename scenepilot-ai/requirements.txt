@@ -28,6 +28,11 @@ opentelemetry-api==1.24.0
 opentelemetry-sdk==1.24.0
 opentelemetry-exporter-otlp-proto-grpc==1.24.0
 
+# ── IBM Granite Guardian (content safety gate) ────────────────────────────────
+# Set GUARDIAN_ENABLED=true in .env to activate. Safe to leave uninstalled
+# when Guardian is disabled — the node imports lazily and never crashes.
+ibm-watsonx-ai>=1.1.2
+
 # ── Utilities ─────────────────────────────────────────────────────────────────
 httpx==0.27.0
 json-repair==0.30.3
