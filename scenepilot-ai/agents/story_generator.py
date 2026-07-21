@@ -430,6 +430,61 @@ def _parse_json(raw: str) -> dict[str, Any]:
             raise
 
 
+# Valid tones — default used when a scene is missing the tone field
+_VALID_TONES = {"tense", "hopeful", "dark", "neutral", "playful"}
+_TONE_BY_GENRE: dict[str, str] = {
+    "thriller": "tense", "fantasy": "hopeful",
+    "sci-fi": "tense", "educational": "neutral", "marketing": "hopeful",
+}
+
+
+def _sanitise_schema(story: dict[str, Any]) -> dict[str, Any]:
+    """Fill in missing required fields on scenes without an LLM call.
+
+    Handles the most common LLM slip: last scene omits 'tone', 'text', or
+    'choices' when the output is truncated near the token limit.
+
+    Rules applied:
+      - Missing 'id'      → assign next sequential scene_NNN
+      - Missing 'tone'    → default to 'neutral' (always valid)
+      - Missing 'text'    → assign a placeholder so schema passes; style
+                            repair will rewrite it on the next pass
+      - Missing 'choices' or non-list → assign [] (terminal scene)
+    """
+    import copy
+    story = copy.deepcopy(story)
+    scenes = story.get("scenes")
+    if not scenes or not isinstance(scenes, list):
+        return story
+
+    existing_ids = {s.get("id") for s in scenes if s.get("id")}
+    counter = len(scenes)
+
+    for i, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            scenes[i] = {"id": f"scene_{(i+1):03d}", "text": "...", "tone": "neutral", "choices": []}
+            continue
+        # Missing id — generate one
+        if not scene.get("id"):
+            candidate = f"scene_{(counter):03d}"
+            while candidate in existing_ids:
+                counter += 1
+                candidate = f"scene_{counter:03d}"
+            scene["id"] = candidate
+            existing_ids.add(candidate)
+        # Missing or invalid tone — default neutral
+        if scene.get("tone") not in _VALID_TONES:
+            scene["tone"] = "neutral"
+        # Missing text
+        if not scene.get("text"):
+            scene["text"] = "The scene continues."
+        # Missing or non-list choices
+        if not isinstance(scene.get("choices"), list):
+            scene["choices"] = []
+
+    return story
+
+
 def _parse_story(raw: str) -> dict[str, Any]:
     """Parse a full story JSON response and enforce DAG invariant.
 
@@ -454,7 +509,7 @@ def _parse_story(raw: str) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError(f"LLM returned unexpected JSON shape: {type(obj).__name__}")
 
-    return _break_cycles(obj)
+    return _break_cycles(_sanitise_schema(obj))
 
 
 def _parse_patch(raw: str) -> dict[str, Any]:
