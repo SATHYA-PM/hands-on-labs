@@ -38,7 +38,9 @@ from core.telemetry import GUARDIAN_BLOCKS
 
 
 # Guardian model identifier on watsonx.ai
-_GUARDIAN_MODEL = "ibm/granite-guardian-3-2-2b"
+# granite-guardian-3-8b is the version available on Lite/free plans in us-south.
+# granite-guardian-3-2-2b is available on Frankfurt (eu-de) paid plans.
+_GUARDIAN_MODEL = os.environ.get("GUARDIAN_MODEL", "ibm/granite-guardian-3-8b")
 
 # Risk categories we ask Guardian to evaluate
 _RISK_CATEGORIES = [
