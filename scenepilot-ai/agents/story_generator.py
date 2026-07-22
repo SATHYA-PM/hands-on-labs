@@ -65,7 +65,8 @@ valid JSON object matching this exact schema — no markdown fences, no commenta
 }
 
 Rules:
-- Generate as many scenes as the premise naturally requires — typically 12–20 scenes for a rich branching narrative.
+- Generate between 12 and 25 scenes maximum. Never plan scenes beyond what you actually write.
+- CRITICAL: Every scene_id referenced in a "next" field MUST exist in your scenes array. Never reference scene_NNN unless you have written that scene.
 - Every non-ending scene must have 2–3 choices.
 - Ending scenes have an empty choices array [].
 - scene ids are scene_001 … scene_NNN (zero-padded to 3 digits).
@@ -485,6 +486,44 @@ def _sanitise_schema(story: dict[str, Any]) -> dict[str, Any]:
     return story
 
 
+def _fix_dangling_refs(story: dict[str, Any]) -> dict[str, Any]:
+    """Deterministically fix dangling next references without an LLM call.
+
+    After the LLM outputs 70 scenes but writes choices pointing to scene_074–
+    scene_209, every such choice is redirected to the nearest existing scene
+    with a higher index — or set to null if no forward scene exists (terminal).
+
+    This runs after _sanitise_schema so all scenes already have valid ids.
+    """
+    import copy
+    story = copy.deepcopy(story)
+    scenes = story.get("scenes")
+    if not scenes or not isinstance(scenes, list):
+        return story
+
+    valid_ids = {s.get("id") for s in scenes if s.get("id")}
+    order = {s.get("id"): i for i, s in enumerate(scenes) if s.get("id")}
+    scene_ids_sorted = [s.get("id") for s in scenes if s.get("id")]
+
+    for scene in scenes:
+        sid = scene.get("id")
+        src_idx = order.get(sid, 0)
+        choices = scene.get("choices", [])
+        if not isinstance(choices, list):
+            continue
+        for choice in choices:
+            nxt = choice.get("next")
+            if nxt and nxt not in valid_ids:
+                # Find nearest valid scene with a higher position
+                forward = next(
+                    (fid for fid in scene_ids_sorted if order.get(fid, 0) > src_idx),
+                    None,
+                )
+                choice["next"] = forward  # None = terminal if no forward scene exists
+
+    return story
+
+
 def _parse_story(raw: str) -> dict[str, Any]:
     """Parse a full story JSON response and enforce DAG invariant.
 
@@ -509,7 +548,7 @@ def _parse_story(raw: str) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError(f"LLM returned unexpected JSON shape: {type(obj).__name__}")
 
-    return _break_cycles(_sanitise_schema(obj))
+    return _break_cycles(_fix_dangling_refs(_sanitise_schema(obj)))
 
 
 def _parse_patch(raw: str) -> dict[str, Any]:
@@ -690,8 +729,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                 CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024
             )
             patch = _parse_patch(raw)
-            story = _sanitise_schema(merge_patch(last_story, patch))
-            story = _break_cycles(story)
+            story = _break_cycles(_fix_dangling_refs(_sanitise_schema(merge_patch(last_story, patch))))
         except ProviderQuotaExhausted as qe:
             error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
         except Exception as exc:
@@ -720,8 +758,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                         if field in fields:
                             scene[field] = fields[field]
                 return merged
-            story = _sanitise_schema(_apply_schema_patch(last_story, patch))
-            story = _break_cycles(story)
+            story = _break_cycles(_fix_dangling_refs(_sanitise_schema(_apply_schema_patch(last_story, patch))))
         except ProviderQuotaExhausted as qe:
             error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
         except Exception as exc:
@@ -738,8 +775,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                 STRUCTURAL_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
             )
             patch = _parse_patch(raw)
-            story = _sanitise_schema(merge_patch(last_story, patch))
-            story = _break_cycles(story)
+            story = _break_cycles(_fix_dangling_refs(_sanitise_schema(merge_patch(last_story, patch))))
         except ProviderQuotaExhausted as qe:
             error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
         except Exception as exc:
