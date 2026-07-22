@@ -690,7 +690,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                 CYCLE_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=1024
             )
             patch = _parse_patch(raw)
-            story = merge_patch(last_story, patch)
+            story = _sanitise_schema(merge_patch(last_story, patch))
             story = _break_cycles(story)
         except ProviderQuotaExhausted as qe:
             error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
@@ -708,7 +708,6 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                 SCHEMA_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
             )
             patch = _parse_patch(raw)
-            # Patch maps scene_id → {text?, tone?, choices?} — use style-patch merger
             def _apply_schema_patch(base: dict[str, Any], spatch: dict[str, Any]) -> dict[str, Any]:
                 import copy
                 merged = copy.deepcopy(base)
@@ -721,7 +720,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                         if field in fields:
                             scene[field] = fields[field]
                 return merged
-            story = _apply_schema_patch(last_story, patch)
+            story = _sanitise_schema(_apply_schema_patch(last_story, patch))
             story = _break_cycles(story)
         except ProviderQuotaExhausted as qe:
             error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
@@ -732,8 +731,6 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
     elif structural_repair:
         # ── STRUCTURAL REPAIR ────────────────────────────────────────────
         _emit(_sid, "progress", {"stage": "structural-repair", "message": f"Fixing {len(structural_issues)} structural issue(s)…", "retry": retry_count})
-        # Fixes orphaned scenes and dangling next references without
-        # touching scene text or tone — minimal patch, low token cost.
         user_prompt = _build_structural_repair_prompt(last_story, structural_issues)
         repair_max_tokens = min(2048, max(512, len(structural_issues) * 150 + 300))
         try:
@@ -741,8 +738,7 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
                 STRUCTURAL_REPAIR_SYSTEM_PROMPT, user_prompt, max_tokens=repair_max_tokens
             )
             patch = _parse_patch(raw)
-            # Patch maps scene_id → choices[] — merge using cycle-repair merge_patch
-            story = merge_patch(last_story, patch)
+            story = _sanitise_schema(merge_patch(last_story, patch))
             story = _break_cycles(story)
         except ProviderQuotaExhausted as qe:
             error = f"PROVIDER QUOTA EXHAUSTED: {qe}"
