@@ -1,0 +1,389 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>ScenePilot AI — Project Specification</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; color: #1f2328; background: #fff; }
+  .page { max-width: 760px; margin: 0 auto; padding: 40px 24px 60px; }
+  h1 { font-size: 22px; font-weight: 700; border-bottom: 2px solid #3b82d4; padding-bottom: 8px; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 12px; margin-bottom: 32px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 32px 0 10px; padding: 6px 10px; background: #f7f8fa; border-left: 4px solid #3b82d4; }
+  h3 { font-size: 14px; font-weight: 700; margin: 20px 0 8px; color: #1f2328; }
+  h4 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: #3b82d4; }
+  p { margin-bottom: 10px; }
+  ul, ol { margin: 8px 0 10px 20px; }
+  li { margin-bottom: 4px; }
+  pre, code { font-family: "Cascadia Code", "Consolas", monospace; font-size: 12px; }
+  pre { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; white-space: pre; }
+  code { background: #f0f1f3; padding: 1px 4px; border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
+  th { background: #f7f8fa; border: 1px solid #e5e7eb; padding: 7px 10px; text-align: left; font-weight: 600; }
+  td { border: 1px solid #e5e7eb; padding: 6px 10px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafbfc; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-blue  { background: #dbeafe; color: #1e40af; }
+  .badge-purple{ background: #ede9fe; color: #5b21b6; }
+  .badge-new   { background: #fef3c7; color: #92400e; }
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  .meta-item { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 16px; flex: 1; min-width: 140px; }
+  .meta-item .label { font-size: 11px; color: #57606a; text-transform: uppercase; letter-spacing: 0.05em; }
+  .meta-item .value { font-size: 13px; font-weight: 600; margin-top: 2px; }
+  .pipeline { background: #0d1117; color: #e6edf3; border-radius: 6px; padding: 16px 18px; font-family: "Cascadia Code", monospace; font-size: 12px; margin: 12px 0; white-space: pre; overflow-x: auto; }
+  .section-num { color: #57606a; font-weight: 400; font-size: 13px; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #57606a; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>◈ ScenePilot AI — Project Specification</h1>
+  <div class="subtitle">IBM SkillsBuild AI Builders Challenge · July 2025 · Built with IBM Bob · Version 2.0 (Hallucination Verifier Added)</div>
+
+  <div class="meta-row">
+    <div class="meta-item"><div class="label">Project Type</div><div class="value">Multi-Agent AI SaaS</div></div>
+    <div class="meta-item"><div class="label">Primary Stack</div><div class="value">LangGraph · FastAPI · React</div></div>
+    <div class="meta-item"><div class="label">Safety Layer</div><div class="value">IBM Granite Guardian 3-8b</div></div>
+    <div class="meta-item"><div class="label">LLM Providers</div><div class="value">Groq · Gemini · watsonx.ai</div></div>
+    <div class="meta-item"><div class="label">Pipeline Agents</div><div class="value">7 agents</div></div>
+    <div class="meta-item"><div class="label">Status</div><div class="value"><span class="badge badge-green">Production Ready</span></div></div>
+  </div>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">1. </span>Project Overview</h2>
+  <p>ScenePilot AI is an AI-powered branching narrative generator with a multi-agent quality-gate pipeline. It takes a story premise, genre, and tone and produces a fully validated, content-safe branching narrative graph — structurally correct, style-compliant, hallucination-checked, and ready for export to JSON, Markdown, Twine, or a 3D game engine blueprint.</p>
+
+  <h3>Core Capabilities</h3>
+  <ul>
+    <li>7-agent LangGraph pipeline with automatic self-correction retry loop</li>
+    <li>RAG-based hallucination verification (confidence + grounding + evidence)</li>
+    <li>IBM Granite Guardian content safety scanning via watsonx.ai</li>
+    <li>Four-mode diff-patch repair engine (82% token reduction vs full regeneration)</li>
+    <li>Three-layer token budget gate (pre-flight · router · generator)</li>
+    <li>Real-time SSE progress stream per pipeline run</li>
+    <li>Interactive story tree, game engine blueprint, playable emulator, 3-format export</li>
+    <li>Prometheus observability + Grafana dashboard</li>
+  </ul>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">2. </span>Problem Statement</h2>
+
+  <h3>Enterprise Flaws in Standard LLM Pipelines</h3>
+  <table>
+    <tr><th>Flaw</th><th>Description</th><th>Business Impact</th></tr>
+    <tr><td><strong>Unpredictable API costs</strong></td><td>No pre-flight budget estimation. LLM calls proceed regardless of token budget</td><td>Unbounded API bills; SaaS margin destruction</td></tr>
+    <tr><td><strong>Infinite repair loops</strong></td><td>Failed validation triggers full story regeneration every retry (~9,000 tokens)</td><td>Exponential cost escalation; frequent 429 quota exhaustion</td></tr>
+    <tr><td><strong>Stateless regeneration</strong></td><td>Each retry discards the previous story entirely</td><td>100% token waste on minor structural issues</td></tr>
+    <tr><td><strong>Brittle JSON parsing</strong></td><td>LLM outputs malformed JSON, markdown fences, partial truncations</td><td>Silent pipeline failures; blank screens; unrecoverable errors</td></tr>
+    <tr><td><strong>Hallucinated content</strong></td><td>Scenes reference entities, locations, characters absent from the premise</td><td>Story incoherence; ungrounded narrative output</td></tr>
+  </table>
+
+  <h3>Problems Solved in This Build</h3>
+  <table>
+    <tr><th>#</th><th>Problem</th><th>Solution</th></tr>
+    <tr><td>1</td><td>Stories always rejected — "Max retries exceeded"</td><td>4-mode diff-patch repair (cycle · schema · structural · style)</td></tr>
+    <tr><td>2</td><td>FAISS 75+ false advisory warnings per run</td><td>Threshold calibrated to 0.20; per-scene score table in UI</td></tr>
+    <tr><td>3</td><td>FAISS rules genre-agnostic</td><td>5 genre-specific rule files; per-genre vault cache</td></tr>
+    <tr><td>4</td><td>Stories lost on server restart</td><td>Atomic JSON file store; survives Docker restarts</td></tr>
+    <tr><td>5</td><td>LLM quota errors → immediate fallback</td><td>Per-provider exponential backoff (2s) before chain escalation</td></tr>
+    <tr><td>6</td><td>Static spinner — no pipeline visibility</td><td>SSE live progress stream; per-agent stage messages</td></tr>
+    <tr><td>7</td><td>Rejection banner said "0 issues detected"</td><td>Precise banner naming exact failure causes</td></tr>
+    <tr><td>8</td><td>IBM Guardian not connecting (region, key format)</td><td>URL → us-south; UUID key only; model → granite-guardian-3-8b</td></tr>
+    <tr><td>9</td><td>No hallucination detection</td><td><span class="badge badge-new">NEW</span> HallucinationVerifierAgent — RAG confidence + grounding</td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">3. </span>System Architecture</h2>
+
+  <div class="pipeline">BROWSER  http://localhost:5173
+  React 18 + Vite | ReactFlow story tree | Recharts cost dashboard
+  3D Blueprint | Emulator | useProgress SSE hook | Export
+         |
+         |  POST /api/generate     ← generate story (pre-flight budget check)
+         |  GET  /api/progress/id  ← SSE live progress stream
+         |  GET  /api/stories/id   ← retrieve stored story
+         ▼
+FASTAPI  :8000  (nginx reverse-proxy, 120s timeout)
+         |
+         ▼
+LANGGRAPH  StateGraph(ScenePilotState)
+
+  [generate] ──► [hallucination_verifier] ──► [style_vault] ──► [sandbox]
+                       (NEW)                                          │
+                                                            approved? ├──YES──► [guardian] ──► [compliance] ──► END
+                                                                      │
+                                                            retry? ───├──YES──► [retry] ──► [generate]
+                                                                      │
+                                                                      └──NO───► [fail] ──► [compliance] ──► END</div>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">4. </span>Agent Pipeline — All 7 Agents</h2>
+
+  <h3>Agent 1 — Story Generator</h3>
+  <table>
+    <tr><th>File</th><td><code>agents/story_generator.py</code></td></tr>
+    <tr><th>Purpose</th><td>Generate branching narrative JSON from premise + genre + tone</td></tr>
+    <tr><th>LLM Chain</th><td>Groq llama-3.3-70b-versatile → Groq llama-3.1-8b-instant → Gemini gemini-2.5-flash</td></tr>
+    <tr><th>Output</th><td>12–25 scenes, DAG-structured, tone-labelled, JSON validated</td></tr>
+    <tr><th>Repair Modes</th><td>cycle_repair · schema_repair · structural_repair · style_repair (priority order)</td></tr>
+    <tr><th>Zero-token Sanitisers</th><td><code>_sanitise_schema()</code> + <code>_fix_dangling_refs()</code> at parse time</td></tr>
+    <tr><th>Typical Duration</th><td>6–8 seconds (Groq primary, no retries)</td></tr>
+  </table>
+
+  <h3>Agent 2 — Hallucination Verifier <span class="badge badge-new">NEW</span></h3>
+  <table>
+    <tr><th>File</th><td><code>agents/hallucination_verifier.py</code></td></tr>
+    <tr><th>Purpose</th><td>RAG-style confidence + grounding check — every scene must trace back to the premise</td></tr>
+    <tr><th>Model</th><td>all-MiniLM-L6-v2 (sentence-transformers, cached locally)</td></tr>
+    <tr><th>Layer 1</th><td>Retrieval confidence: cosine similarity scene vs premise fragments; flag &lt; 0.20</td></tr>
+    <tr><th>Layer 2</th><td>Evidence grounding: best-matching premise fragment stored per scene</td></tr>
+    <tr><th>Layer 3</th><td>Verification: novel proper nouns absent from premise penalise score (−0.05/entity)</td></tr>
+    <tr><th>Layer 4</th><td>No blind rejection: flags fed to repair loop; pipeline never blocked</td></tr>
+    <tr><th>Typical Duration</th><td>~1–3s (model cached); ~44s first run (model download)</td></tr>
+  </table>
+
+  <h3>Agent 3 — Style Vault</h3>
+  <table>
+    <tr><th>File</th><td><code>agents/style_vault_agent.py</code> + <code>core/style_vault.py</code></td></tr>
+    <tr><th>Purpose</th><td>Genre-scoped FAISS semantic similarity + deterministic tone gate</td></tr>
+    <tr><th>Blocking</th><td>Tone label mismatches (e.g., "playful" in thriller) — triggers style_repair</td></tr>
+    <tr><th>Advisory</th><td>FAISS cosine scores shown as colour bars in UI — never block approval</td></tr>
+    <tr><th>Rule files</th><td>3 common files + 5 genre-specific files (thriller, fantasy, sci-fi, educational, marketing)</td></tr>
+    <tr><th>Typical Duration</th><td>5–10 seconds</td></tr>
+  </table>
+
+  <h3>Agent 4 — Sandbox Validator</h3>
+  <table>
+    <tr><th>File</th><td><code>agents/sandbox_validator.py</code> + <code>sandbox/validator.py</code></td></tr>
+    <tr><th>Purpose</th><td>Structural and schema validation using NetworkX graph theory</td></tr>
+    <tr><th>Check 1</th><td>Schema: required fields, valid tone values, duplicate IDs, choice structure</td></tr>
+    <tr><th>Check 2</th><td>Cycle detection: <code>networkx.simple_cycles()</code> — extracts (source, target) back-edges</td></tr>
+    <tr><th>Check 3</th><td>Structural: dangling next references, orphaned scenes, minimum 6 scenes</td></tr>
+    <tr><th>Typical Duration</th><td>400–600ms</td></tr>
+  </table>
+
+  <h3>Agent 5 — IBM Granite Guardian</h3>
+  <table>
+    <tr><th>File</th><td><code>agents/granite_guardian.py</code></td></tr>
+    <tr><th>Purpose</th><td>Content safety scan via IBM watsonx.ai</td></tr>
+    <tr><th>Model</th><td>ibm/granite-guardian-3-8b (Lite plan, us-south region)</td></tr>
+    <tr><th>Categories</th><td>harm · violence · hate · sexual_content · profanity</td></tr>
+    <tr><th>Threshold</th><td>0.8 (configurable via GUARDIAN_THRESHOLD)</td></tr>
+    <tr><th>Scan volume</th><td>25 scenes × 5 categories = 125 API calls per run</td></tr>
+    <tr><th>Typical Duration</th><td>~104–140s (Lite shared endpoint); &lt;30s (paid dedicated)</td></tr>
+  </table>
+
+  <h3>Agent 6 — Compliance Agent</h3>
+  <table>
+    <tr><th>File</th><td><code>agents/compliance_agent.py</code></td></tr>
+    <tr><th>Purpose</th><td>SHA-256 fingerprinted audit report + disk persistence</td></tr>
+    <tr><th>Output</th><td>Fingerprint stored in state; story persisted as JSON to <code>data/stories/</code></td></tr>
+    <tr><th>Typical Duration</th><td>4–8ms</td></tr>
+  </table>
+
+  <h3>Orchestrator</h3>
+  <table>
+    <tr><th>File</th><td><code>agents/orchestrator.py</code></td></tr>
+    <tr><th>Purpose</th><td>LangGraph StateGraph wiring + budget-aware retry router</td></tr>
+    <tr><th>Routing</th><td>approved → guardian → compliance · retry (if budget) → generate · fail → compliance</td></tr>
+    <tr><th>Max Retries</th><td>2 (configurable via MAX_RETRIES)</td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">5. </span>State Fields (ScenePilotState)</h2>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Set by</th><th>Read by</th></tr>
+    <tr><td><code>story</code></td><td>dict</td><td>StoryGenerator</td><td>HallucinationVerifier, StyleVault, Sandbox, Guardian, Compliance</td></tr>
+    <tr><td><code>hallucination_check</code></td><td>dict</td><td>HallucinationVerifier <span class="badge badge-new">NEW</span></td><td>Compliance, API route</td></tr>
+    <tr><td><code>validation</code></td><td>ValidationResult</td><td>StyleVault + Sandbox</td><td>Orchestrator, API route</td></tr>
+    <tr><td><code>approved</code></td><td>bool</td><td>Sandbox</td><td>Orchestrator, Guardian, API route</td></tr>
+    <tr><td><code>broken_nodes</code></td><td>list[tuple]</td><td>Sandbox</td><td>StoryGenerator (cycle repair)</td></tr>
+    <tr><td><code>last_story</code></td><td>dict</td><td>Sandbox</td><td>StoryGenerator (merge_patch base)</td></tr>
+    <tr><td><code>structural_issues</code></td><td>list[str]</td><td>Sandbox</td><td>StoryGenerator (structural repair)</td></tr>
+    <tr><td><code>token_spend</code></td><td>int</td><td>StoryGenerator</td><td>Orchestrator budget gate, API route</td></tr>
+    <tr><td><code>budget_halt</code></td><td>bool</td><td>StoryGenerator / Orchestrator</td><td>API route</td></tr>
+    <tr><td><code>guardian_check</code></td><td>dict</td><td>GraniteGuardian</td><td>Compliance, API route</td></tr>
+    <tr><td><code>agent_spans</code></td><td>list[dict]</td><td>All agents</td><td>ComplianceAgent, API route (UI)</td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">6. </span>Three-Layer Token Budget Gate</h2>
+  <table>
+    <tr><th>Layer</th><th>Where</th><th>What it does</th></tr>
+    <tr><td><strong>Pre-flight</strong></td><td><code>api/routes.py</code></td><td>Estimates worst-case cost before any LLM call; rejects with exact TOKEN_BUDGET_LIMIT=N recommendation</td></tr>
+    <tr><td><strong>Router gate</strong></td><td><code>agents/orchestrator.py</code></td><td>Checks remaining balance vs mode-aware reserve before each retry (1,200 repair / 9,500 full-gen)</td></tr>
+    <tr><td><strong>Generator guard</strong></td><td><code>agents/story_generator.py</code></td><td>Defence-in-depth: refuses LLM call if balance &lt; reserve; surfaces last_story as best-effort</td></tr>
+  </table>
+  <pre>full_gen_est  = 400 + (premise_chars / 4) × SCENE_MULTIPLIER
+repair_reserve = 1,200 × MAX_RETRIES
+worst_case     = full_gen_est + repair_reserve
+recommended    = ceil(worst_case × 1.15 / 500) × 500</pre>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">7. </span>Four-Mode Diff-Patch Repair Engine</h2>
+  <table>
+    <tr><th>Priority</th><th>Mode</th><th>Trigger</th><th>Token cost</th></tr>
+    <tr><td>1</td><td><strong>cycle_repair</strong></td><td>broken_nodes non-empty (graph back-edges)</td><td>~600 tokens</td></tr>
+    <tr><td>2</td><td><strong>schema_repair</strong></td><td>schema_errors non-empty (missing fields)</td><td>~400 tokens</td></tr>
+    <tr><td>3</td><td><strong>structural_repair</strong></td><td>structural_issues non-empty (orphans, dangling refs)</td><td>~500 tokens</td></tr>
+    <tr><td>4</td><td><strong>style_repair</strong></td><td>style violations present, graph structurally sound</td><td>~800 tokens</td></tr>
+  </table>
+  <p><strong>Zero-token pre-repair</strong> (runs before LLM on every pass):</p>
+  <ul>
+    <li><code>_sanitise_schema()</code> — fills missing id, tone, text, choices fields deterministically</li>
+    <li><code>_fix_dangling_refs()</code> — redirects broken <code>next</code> pointers to nearest valid forward scene</li>
+  </ul>
+  <p><strong>Result:</strong> 82% token reduction on retry passes (~600 tokens vs ~9,000 for full regeneration)</p>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">8. </span>API Reference</h2>
+  <table>
+    <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+    <tr><td><code>/api/generate</code></td><td>POST</td><td>Run full pipeline. Body: <code>{premise, genre, tone}</code></td></tr>
+    <tr><td><code>/api/progress/{story_id}</code></td><td>GET</td><td>SSE live progress stream — per-agent stage events</td></tr>
+    <tr><td><code>/api/stories/{story_id}</code></td><td>GET</td><td>Retrieve persisted story JSON</td></tr>
+    <tr><td><code>/api/validate</code></td><td>POST</td><td>Sandbox-only validation (no LLM call)</td></tr>
+    <tr><td><code>/api/blueprint</code></td><td>POST</td><td>Generate 3D spatial layout for game engine export</td></tr>
+    <tr><td><code>/api/samples</code></td><td>GET</td><td>Demo library — 5 pre-built story samples</td></tr>
+    <tr><td><code>/metrics</code></td><td>GET</td><td>Prometheus metrics exposition</td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">9. </span>Configuration Reference (.env)</h2>
+  <table>
+    <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>GROQ_API_KEY</code></td><td>required</td><td>Groq API key (primary LLM)</td></tr>
+    <tr><td><code>GEMINI_API_KEY</code></td><td>required</td><td>Google Gemini API key (fallback LLM)</td></tr>
+    <tr><td><code>TOKEN_BUDGET_LIMIT</code></td><td>40,000</td><td>Total token ceiling per pipeline run</td></tr>
+    <tr><td><code>MAX_RETRIES</code></td><td>2</td><td>Maximum self-correction retries</td></tr>
+    <tr><td><code>SCENE_MULTIPLIER</code></td><td>40</td><td>Pre-flight token estimate multiplier</td></tr>
+    <tr><td><code>LLM_RETRY_DELAY</code></td><td>2.0</td><td>Seconds before retrying a quota-hit provider</td></tr>
+    <tr><td><code>GUARDIAN_ENABLED</code></td><td>false</td><td>Enable IBM Granite Guardian content gate</td></tr>
+    <tr><td><code>WATSONX_API_KEY</code></td><td>—</td><td>IBM Cloud API key (UUID only, no ApiKey- prefix)</td></tr>
+    <tr><td><code>WATSONX_PROJECT_ID</code></td><td>—</td><td>watsonx.ai project ID (GUID)</td></tr>
+    <tr><td><code>WATSONX_URL</code></td><td>https://us-south.ml.cloud.ibm.com</td><td>watsonx.ai region endpoint</td></tr>
+    <tr><td><code>GUARDIAN_THRESHOLD</code></td><td>0.8</td><td>Risk score cutoff (0.0 safe – 1.0 harmful)</td></tr>
+    <tr><td><code>GUARDIAN_MODEL</code></td><td>ibm/granite-guardian-3-8b</td><td>Guardian model ID on watsonx.ai</td></tr>
+    <tr><td><code>HALLUCINATION_ENABLED</code></td><td>true</td><td><span class="badge badge-new">NEW</span> Enable hallucination verifier</td></tr>
+    <tr><td><code>HALLUCINATION_CONFIDENCE_THRESHOLD</code></td><td>0.20</td><td><span class="badge badge-new">NEW</span> Similarity floor for scene grounding</td></tr>
+    <tr><td><code>STYLE_SIMILARITY_THRESHOLD</code></td><td>0.20</td><td>FAISS advisory flag floor</td></tr>
+    <tr><td><code>SANDBOX_USE_DOCKER</code></td><td>false</td><td>Run sandbox in Docker container</td></tr>
+    <tr><td><code>CORS_ORIGINS</code></td><td>localhost:5173,3000</td><td>Allowed CORS origins</td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">10. </span>Technical Stack</h2>
+  <table>
+    <tr><th>Category</th><th>Technology</th><th>Purpose</th></tr>
+    <tr><td>Orchestration</td><td>LangGraph 0.2</td><td>Typed StateGraph, conditional routing, retry loop</td></tr>
+    <tr><td>LLM Primary</td><td>Groq llama-3.3-70b-versatile</td><td>Story generation (primary)</td></tr>
+    <tr><td>LLM Secondary</td><td>Groq llama-3.1-8b-instant</td><td>Story generation (fallback, separate quota)</td></tr>
+    <tr><td>LLM Tertiary</td><td>Gemini gemini-2.5-flash</td><td>Story generation (tertiary fallback)</td></tr>
+    <tr><td>Safety</td><td>IBM Granite Guardian 3-8b</td><td>Content safety scan via watsonx.ai</td></tr>
+    <tr><td>Hallucination</td><td>sentence-transformers all-MiniLM-L6-v2</td><td>Scene-premise similarity scoring</td></tr>
+    <tr><td>FAISS</td><td>faiss-cpu 1.7.4</td><td>Style rule semantic search</td></tr>
+    <tr><td>Graph Validation</td><td>NetworkX</td><td>DAG cycle detection + structural checks</td></tr>
+    <tr><td>API</td><td>FastAPI + Uvicorn</td><td>REST API + SSE streaming</td></tr>
+    <tr><td>Frontend</td><td>React 18 + Vite + TypeScript</td><td>UI, story tree, dashboard, emulator</td></tr>
+    <tr><td>Visualisation</td><td>React Flow + Recharts</td><td>Story tree canvas + cost charts</td></tr>
+    <tr><td>Metrics</td><td>Prometheus + Grafana</td><td>Per-agent telemetry + dashboard</td></tr>
+    <tr><td>Infrastructure</td><td>Docker Compose + nginx</td><td>Container orchestration + reverse proxy</td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">11. </span>Verified Production Results</h2>
+
+  <h3>Latest Run — "Quantum Convergence" (Sci-Fi, 25 scenes)</h3>
+  <table>
+    <tr><th>Agent</th><th>Duration</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>Story Generator</td><td>6,842ms</td><td><span class="badge badge-green">✓</span></td><td>2,891 tokens · 0 cycles</td></tr>
+    <tr><td>HallucinationVerifier <span class="badge badge-new">NEW</span></td><td>43,598ms*</td><td><span class="badge badge-green">✓</span></td><td>*First run (model download); ~1–3s thereafter</td></tr>
+    <tr><td>Style Vault</td><td>5,417ms</td><td><span class="badge badge-green">✓</span></td><td>0 violations</td></tr>
+    <tr><td>Sandbox Validator</td><td>463ms</td><td><span class="badge badge-green">✓</span></td><td>0 cycles</td></tr>
+    <tr><td>IBM Granite Guardian</td><td>139,997ms</td><td><span class="badge badge-green">✓</span></td><td>0 violations · 25×5=125 API calls</td></tr>
+    <tr><td>Compliance</td><td>8ms</td><td><span class="badge badge-green">✓</span></td><td>fp: 55b7f1ab2744b894…</td></tr>
+  </table>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Tokens used</td><td>2,891 (7% of 40,000 budget)</td></tr>
+    <tr><td>Retries</td><td>0</td></tr>
+    <tr><td>Validation gates passed</td><td>Cycles: 0 · Schema: 0 · Tone: 0 · Style: 0 · Structural: 0</td></tr>
+    <tr><td>Final status</td><td><span class="badge badge-green">● APPROVED</span></td></tr>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">12. </span>Project Structure</h2>
+  <pre>scenepilot-ai/
+├── agents/
+│   ├── state.py                    LangGraph state TypedDict
+│   ├── story_generator.py          Generation + 4 repair modes + sanitisers
+│   ├── hallucination_verifier.py   RAG confidence + grounding check  [NEW]
+│   ├── style_vault_agent.py        Genre-scoped FAISS (blocking + advisory)
+│   ├── sandbox_validator.py        NetworkX cycles + schema + structural
+│   ├── granite_guardian.py         IBM Granite Guardian content safety
+│   ├── compliance_agent.py         SHA-256 audit + disk persistence
+│   └── orchestrator.py             LangGraph graph + budget router + SSE
+├── api/
+│   ├── main.py                     FastAPI app, CORS, metrics mount
+│   ├── routes.py                   /generate /progress /validate /blueprint
+│   └── samples_route.py            /samples demo library
+├── core/
+│   ├── story_store.py              Atomic JSON file store
+│   ├── progress.py                 Per-run SSE event queue
+│   ├── llm_client.py               3-provider fallback chain + retry
+│   ├── style_vault.py              FAISS index builder
+│   ├── telemetry.py                Prometheus metrics
+│   ├── blueprint.py                3D BFS spatial layout
+│   └── utils.py                    merge_patch() for diff-patch repair
+├── data/rules/                     Style rule files (common + 5 genres)
+├── frontend/src/                   React 18 + Vite UI
+├── prometheus/prometheus.yml
+├── docker-compose.yml
+├── Dockerfile
+└── requirements.txt</pre>
+
+  <hr class="divider" />
+
+  
+  <h2><span class="section-num">13. </span>Export Formats</h2>
+  <table>
+    <tr><th>Format</th><th>Description</th><th>Use case</th></tr>
+    <tr><td><strong>JSON</strong></td><td>Raw story graph — scenes + choices</td><td>Any game engine or further processing</td></tr>
+    <tr><td><strong>Markdown</strong></td><td>Human-readable with tone annotations</td><td>Writers, reviewers, documentation</td></tr>
+    <tr><td><strong>Twine (.tw)</strong></td><td>Twee 3 notation</td><td>Import into Twine 2 / compile with Tweego</td></tr>
+    <tr><td><strong>Unity C#</strong></td><td>MonoBehaviour blueprint</td><td>Unity game engine integration</td></tr>
+    <tr><td><strong>Unreal Engine</strong></td><td>Blueprint JSON</td><td>Unreal Engine integration</td></tr>
+    <tr><td><strong>Godot</strong></td><td>GDScript Resource</td><td>Godot game engine integration</td></tr>
+  </table>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

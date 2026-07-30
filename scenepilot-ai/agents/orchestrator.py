@@ -16,6 +16,7 @@ from agents.style_vault_agent import style_vault_node
 from agents.sandbox_validator import sandbox_validator_node
 from agents.compliance_agent import compliance_node
 from agents.granite_guardian import granite_guardian_node
+from agents.hallucination_verifier import hallucination_verifier_node
 
 
 # ── Budget reserve constants ──────────────────────────────────────────────────
@@ -134,6 +135,7 @@ def build_graph() -> StateGraph:
     graph = StateGraph(ScenePilotState)
 
     graph.add_node("generate", story_generator_node)
+    graph.add_node("hallucination_verifier", hallucination_verifier_node)
     graph.add_node("style_vault", style_vault_node)
     graph.add_node("sandbox", sandbox_validator_node)
     graph.add_node("guardian", granite_guardian_node)
@@ -143,7 +145,8 @@ def build_graph() -> StateGraph:
 
     graph.set_entry_point("generate")
 
-    graph.add_edge("generate", "style_vault")
+    graph.add_edge("generate", "hallucination_verifier")  # new: confidence check
+    graph.add_edge("hallucination_verifier", "style_vault")
     graph.add_edge("style_vault", "sandbox")
 
     graph.add_conditional_edges(
@@ -205,6 +208,8 @@ def run_pipeline(premise: str, genre: str, tone: float) -> ScenePilotState:
         "budget_halt": False,
         # Guardian — None until the node runs.
         "guardian_check": None,
+        # Hallucination verifier — None until the node runs.
+        "hallucination_check": None,
         "audit": None,
         "agent_spans": [],
         "token_spend": 0,

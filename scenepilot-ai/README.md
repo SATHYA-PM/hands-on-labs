@@ -196,11 +196,12 @@ ScenePilot AI takes a story premise, genre, and tone and produces a fully valida
 
 ### 🤖 Multi-Agent LangGraph Pipeline
 
-Six agents run in sequence with an automatic self-correction retry loop (configurable, default 2 retries):
+Seven agents run in sequence with an automatic self-correction retry loop (configurable, default 2 retries):
 
 | Agent | Role |
 |---|---|
 | **StoryGeneratorAgent** | Calls Groq `llama-3.3-70b-versatile` (fallback: `llama-3.1-8b-instant` → Gemini `gemini-2.5-flash`). On retry, activates one of four targeted repair modes |
+| **HallucinationVerifierAgent** | RAG-style confidence + grounding check. Embeds each scene against premise fragments using `all-MiniLM-L6-v2`; flags scenes with low similarity (< 0.20) or novel entities absent from premise |
 | **StyleVaultAgent** | FAISS semantic search across common + genre-specific rule files. Blocking: tone mismatches. Advisory: similarity scores shown as colour-coded bars |
 | **SandboxValidatorAgent** | NetworkX cycle detection, JSON schema validation, orphan/dangling-ref structural checks |
 | **GraniteGuardianAgent** | IBM Granite Guardian 3-8b content safety scan via watsonx.ai. Checks harm/violence/hate/sexual/profanity across all scenes |
@@ -381,7 +382,11 @@ docker compose up
      ▼                                             ▼
  LangGraph Pipeline                          core/progress.py
  ┌──────────────────────────────────────┐    (SSE event bus)
- │  generate → style_vault → sandbox   │
+ │  generate                           │
+ │      ↓                              │
+ │  hallucination_verifier  ← NEW      │
+ │      ↓                              │
+ │  style_vault → sandbox              │
  │      ↓ fail                         │
  │  schema/structural/cycle repair?    │
  │      ↓                              │
@@ -390,12 +395,11 @@ docker compose up
  │  compliance → END                   │
  └──────────────────────────────────────┘
      │              │              │
-  LLM chain      FAISS          NetworkX
-  (Groq+retry    (genre         (cycle
-  → Gemini)      rules)         detection)
-                                 +
-                           _sanitise_schema()
-                           _fix_dangling_refs()
+  LLM chain      FAISS          sentence-transformers
+  (Groq+retry    (genre         (all-MiniLM-L6-v2)
+  → Gemini)      rules)         + NetworkX
+                                 + _sanitise_schema()
+                                 + _fix_dangling_refs()
 ```
 
 ---
@@ -407,6 +411,7 @@ scenepilot-ai/
 ├── agents/
 │   ├── state.py                 LangGraph state TypedDict
 │   ├── story_generator.py       Generation + 4 repair modes + schema sanitiser
+│   ├── hallucination_verifier.py  RAG confidence + grounding check (NEW)
 │   ├── style_vault_agent.py     Genre-scoped FAISS style check (blocking + advisory)
 │   ├── sandbox_validator.py     NetworkX cycles + schema + structural checks
 │   ├── granite_guardian.py      IBM Granite Guardian content safety gate

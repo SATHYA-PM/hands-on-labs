@@ -70,3 +70,13 @@ class ScenePilotState(TypedDict):
     budget_halt: bool
     # guardian_check: result dict from GraniteGuardianAgent
     guardian_check: Optional[dict]
+    # hallucination_check: result dict from HallucinationVerifierAgent
+    # {
+    #   "enabled": bool,
+    #   "scene_scores": [{"scene_id": str, "confidence": float, "grounded": bool, "evidence": str}],
+    #   "low_confidence_scenes": [str],   # scene_ids below threshold
+    #   "retrieval_gap": float,           # top1 - top2 similarity gap from Style Vault
+    #   "flagged": bool,                  # True if any scene is ungrounded
+    #   "error": Optional[str],
+    # }
+    hallucination_check: Optional[dict]
