@@ -866,6 +866,14 @@ def story_generator_node(state: ScenePilotState) -> ScenePilotState:
         "error": error,
     }
 
+    # Increment Prometheus token counter so Grafana shows real spend
+    if tokens > 0:
+        try:
+            from core.telemetry import AGENT_TOKEN_SPEND  # type: ignore
+            AGENT_TOKEN_SPEND.inc(tokens)
+        except Exception:
+            pass
+
     # If both LLMs failed, exhaust retries so we don't keep burning on a None
     # story that will always fail sandbox.
     if story is None:
